@@ -14,7 +14,7 @@ const nuevoEstado = () => ({
   siembra: '', inicio: '', fin: '', bienes: filas(bien, 9), ganado: filas(ganado, 5),
   refs: referenciaBase.map(tipo => ({ tipo, entidad: '', contacto: '', telefono: '' })),
   declarantes: [{ titular: '', ruc: '' }, { titular: '', ruc: '' }, { titular: '', ruc: '' }],
-  aclaracion: '', firmaRuc: ''
+  aclaracion: ''
 });
 
 function Field({ label, value, onChange, type = 'text', className = '', placeholder = '' }) {
@@ -128,7 +128,7 @@ export default function App() {
               <p>Declaro bajo fe de juramento que la información consignada en el presente formulario es verdadera, completa y corresponde a mi situación patrimonial y productiva a la fecha de su suscripción. Asimismo, me comprometo a informar cualquier modificación relevante de los bienes, obligaciones, garantías o situación productiva declarada.</p>
               <p>En cumplimiento de la Ley N° 6.534/20 "De Protección de Datos Personales Crediticios" y demás disposiciones concordantes, autorizo en forma expresa, libre e irrevocable a MAS FERTIL SAE, conforme al Art. 917 inc. a) del Código Civil Paraguayo, a recabar, verificar y confirmar por sí o a través de terceros habilitados, información sobre mi situación patrimonial, solvencia económica y cumplimiento de obligaciones comerciales, financieras y tributarias, ante registros públicos o empresas de información crediticia privadas, con la finalidad exclusiva de análisis de créditos u operaciones presentes o futuras.</p>
               <Table heads={['TITULAR/REPRESENTANTE LEGAL', 'RUC/CI N°']} className="declarants-table">{d.declarantes.map((row, i) => <tr key={i}><td><input value={row.titular} onChange={e => setRow('declarantes', i, 'titular', e.target.value)} /></td><td><input value={row.ruc} onChange={e => setRow('declarantes', i, 'ruc', e.target.value)} /></td></tr>)}</Table>
-              <div className="signature"><div className="signature-line" /><b>TITULAR/REPRESENTANTE LEGAL</b><Field label="ACLARACION" value={d.aclaracion} onChange={v => set('aclaracion', v)} /><Field label="RUC/CI N°" value={d.firmaRuc} onChange={v => set('firmaRuc', v)} /></div>
+              <div className="signature"><div className="signature-line" /><b>TITULAR/REPRESENTANTE LEGAL</b><Field label="ACLARACION" value={d.aclaracion} onChange={v => set('aclaracion', v)} /></div>
             </Section><PageFooter />
           </article>
         </div>
