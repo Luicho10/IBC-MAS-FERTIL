@@ -7,4 +7,8 @@
 <path d="M52 58 C52 50 52 42 52 34" fill="none" stroke="#008f2f" stroke-width="3.2" stroke-linecap="round"/>
 <path d="M52 46 C47 40 42 39 37 41 C40 47 46 50 52 48 Z" fill="#008f2f"/>
 <path d="M52 43 C56 37 62 36 67 38 C64 44 59 47 52 46 Z" fill="#008f2f"/>
+</svg<circle cx="52" cy="26" r="5.2" fill="#f7b63b"/>
+<path d="M52 58V47" fill="none" stroke="#008f2f" stroke-width="3.2" stroke-linecap="round"/>
+<path d="M52 47C47 41 41 40 36 43C40 49 46 51 52 49Z" fill="#008f2f"/>
+<path d="M52 46C57 40 63 39 68 41C65 47 59 49 52 48Z" fill="#008f2f"/>
 </svg>
