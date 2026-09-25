@@ -39,7 +39,7 @@ function EditableRow({ data, index, fields, collection, setData }) {
 
 function LogoHeader() {
   return <header className="document-header">
-    <img src={`${import.meta.env.BASE_URL}logo-mas-fertil-v6.svg`} alt="másfertil fertilizantes" className="mas-logo" />
+    <img src={`${import.meta.env.BASE_URL}logo-mas-fertil-original.png`} alt="másfertil fertilizantes" className="mas-logo" />
     <div className="granu"><span>GRANU</span><b>+</b></div>
   </header>;
 }
@@ -61,7 +61,7 @@ export default function App() {
   return <div className="app-shell">
     <header className="app-header no-print">
       <div className="brand-block">
-        <img src={`${import.meta.env.BASE_URL}logo-mas-fertil-v6.svg`} alt="másfertil fertilizantes" className="app-logo" />
+        <img src={`${import.meta.env.BASE_URL}logo-mas-fertil-original.png`} alt="másfertil fertilizantes" className="app-logo" />
       </div>
       <div className="app-title">
         <strong>(IBC) TÉCNICO INTEGRAL Y MULTISECTORIAL</strong>
@@ -85,7 +85,7 @@ export default function App() {
         <button className="side-link" onClick={nuevo}><span>⊕</span> Nuevo IBC</button>
         <div className="side-divider" />
         <div className="side-help"><span className="help-icon">?</span><div><b>IBC MAS FERTIL</b><small>Complete cada campo manualmente. El formulario conserva las 3 páginas para impresión A4.</small></div></div>
-        <div className="sidebar-brand"><img src={`${import.meta.env.BASE_URL}logo-mas-fertil-v6.svg`} alt="MAS FERTIL" /></div>
+        <div className="sidebar-brand"><img src={`${import.meta.env.BASE_URL}logo-mas-fertil-original.png`} alt="MAS FERTIL" /></div>
       </aside>
 
       <main className="system-content">
