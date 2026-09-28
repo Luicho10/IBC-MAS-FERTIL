@@ -245,3 +245,26 @@ footer{font-size:10px;text-align:left;margin:16px 0 0;color:#555}.screen-navigat
   .print-location-results strong{display:block;font-size:11px;color:#17355d}
   .print-observations{font-size:8.5px!important}
 }
+
+@media print{
+  @page{size:A4 portrait;margin:0}
+  .print-page{box-sizing:border-box!important;overflow:visible!important}
+  .page-one .section{margin-top:1.5mm!important;margin-bottom:1.5mm!important}
+  .page-one .location-model-grid{gap:1.5mm 2.5mm!important;padding-top:2mm!important}
+  .page-one .location-registry{padding-bottom:2mm!important}
+  .page-one .location-gps-box{padding:1.8mm!important;margin-bottom:1.5mm!important}
+  .page-one .print-location-detail{padding:2.5mm!important}
+  .page-one .print-location-heading{margin:-2.5mm -2.5mm 1.8mm!important;padding:2mm 2.5mm!important}
+  .page-one .print-farm-grid{gap:1.3mm 2mm!important;margin-bottom:1.8mm!important}
+  .page-one .print-farm-grid>div{padding:1.3mm 1.7mm!important;min-height:8mm!important}
+  .page-one .print-gps-box{padding:1.8mm!important;margin-bottom:1.8mm!important}
+  .page-one .print-gps-grid{gap:1.3mm 2mm!important}
+  .page-one .print-gps-grid>div{padding:1.2mm 1.6mm!important}
+  .page-one .area-print-preview{margin-top:1.8mm!important}
+  .page-one .area-print-title{padding:1.5mm 2mm!important;font-size:8.5px!important}
+  .page-one .area-print-preview svg{height:55mm!important}
+  .page-one .print-location-results{margin-top:1.8mm!important;gap:2mm!important}
+  .page-one .print-location-results>div{padding:1.5mm 2mm!important}
+  .page-one .print-observations{margin-top:1.5mm!important;padding-top:1.5mm!important}
+  .page-one .locations-print{margin:0 2mm!important}
+}
