@@ -38,13 +38,6 @@ function tileXY(lat, lon, zoom) {
   const y = ((1 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2) * n;
   return { x, y };
 }
-function tileXY(lat, lon, zoom) {
-  const n = 2 ** zoom;
-  const x = ((lon + 180) / 360) * n;
-  const latRad = lat * Math.PI / 180;
-  const y = ((1 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2) * n;
-  return { x, y };
-}
 function pixelToLatLon(px, py, zoom) {
   const n = 2 ** zoom;
   const lon = (px / (256 * n)) * 360 - 180;
