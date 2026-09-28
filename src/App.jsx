@@ -307,6 +307,7 @@ function openMap(lat, lon) {
 }
 function LocationMap({ row, onAreaChange, onCoordinateChange }) {
   const initial = row.areaData || { drawing: false, closed: false, points: [] };
+  const coordinateCallback = onCoordinateChange || (() => {});
   const [drawing, setDrawing] = useState(Boolean(initial.drawing));
   const [closed, setClosed] = useState(Boolean(initial.closed));
   const [points, setPoints] = useState(Array.isArray(initial.points) ? initial.points : []);
@@ -357,7 +358,7 @@ function LocationMap({ row, onAreaChange, onCoordinateChange }) {
       area={{ drawing, closed, points }}
       onAreaChange={handleMapArea}
       onCoordinateChange={v => {
-        if (onCoordinateChange) onCoordinateChange(v);
+        coordinateCallback(v);
       }}
     />
 
