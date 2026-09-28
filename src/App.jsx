@@ -188,14 +188,15 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
       }).setView([initialLat, initialLon], initialZoom);
 
       const satelliteLayer = L.tileLayer(
-        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
           minZoom: 1,
           maxZoom: 19,
-          maxNativeZoom: 19,
-          keepBuffer: 8,
+          maxNativeZoom: 16,
+          keepBuffer: 10,
           updateWhenIdle: false,
           updateWhenZooming: true,
+          detectRetina: false,
           attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
         }
       ).addTo(map);
