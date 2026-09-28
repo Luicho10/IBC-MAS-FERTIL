@@ -124,32 +124,37 @@ function AreaPrintPreview({ points = [] }) {
   const maxLat = Math.max(...validPoints.map(p => p.lat));
   const minLon = Math.min(...validPoints.map(p => p.lon));
   const maxLon = Math.max(...validPoints.map(p => p.lon));
-  const spanLat = Math.max(maxLat - minLat, 0.00001);
-  const spanLon = Math.max(maxLon - minLon, 0.00001);
-  const width = 360;
-  const height = 150;
-  const pad = 18;
+  const latPad = Math.max((maxLat - minLat) * 0.25, 0.002);
+  const lonPad = Math.max((maxLon - minLon) * 0.25, 0.002);
+  const south = minLat - latPad;
+  const north = maxLat + latPad;
+  const west = minLon - lonPad;
+  const east = maxLon + lonPad;
+  const spanLat = Math.max(north - south, 0.00001);
+  const spanLon = Math.max(east - west, 0.00001);
+  const width = 900;
+  const height = 420;
+  const imageUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${west},${south},${east},${north}&bboxSR=4326&imageSR=4326&size=${width},${height}&format=jpg&f=image&transparent=false`;
+  const pad = 0;
   const path = validPoints.map((p, i) => {
-    const x = pad + ((p.lon - minLon) / spanLon) * (width - pad * 2);
-    const y = height - pad - ((p.lat - minLat) / spanLat) * (height - pad * 2);
+    const x = ((p.lon - west) / spanLon) * width;
+    const y = height - ((p.lat - south) / spanLat) * height;
     return `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
   }).join(' ') + ' Z';
 
   return (
     <div className="area-print-preview">
       <div className="area-print-title">ÁREA DELIMITADA — CROQUIS</div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Croquis del área delimitada">
-        <rect x="0" y="0" width={width} height={height} className="area-print-background" />
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Croquis satelital del área delimitada">
+        <image href={imageUrl} x="0" y="0" width={width} height={height} preserveAspectRatio="none" />
+        <rect x="0" y="0" width={width} height={height} className="area-print-shade" />
         <path d={path} className="area-print-polygon" />
         {validPoints.map((p, i) => {
-          const x = pad + ((p.lon - minLon) / spanLon) * (width - pad * 2);
-          const y = height - pad - ((p.lat - minLat) / spanLat) * (height - pad * 2);
-          return <circle key={i} cx={x} cy={y} r="3" className="area-print-point" />;
+          const x = ((p.lon - west) / spanLon) * width;
+          const y = height - ((p.lat - south) / spanLat) * height;
+          return <circle key={i} cx={x} cy={y} r="6" className="area-print-point" />;
         })}
       </svg>
-      <div className="area-print-coordinates">
-        {validPoints.map((p, i) => `P${i + 1}: ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`).join('  •  ')}
-      </div>
     </div>
   );
 }
@@ -640,20 +645,33 @@ export default function App() {
                 </div>)}
               </div>
               <div className="locations-print">
-                <Table heads={['Ubicación GPS / Localidad', 'Finca / Padrón / Cta. Cte. / Lote / Manzana', 'Superficie ha.', 'Tenencia', 'Valor estimado Gs/Usd', 'Hipoteca / Gravamen']}>
-                  {d.fincas.map((row, i) => <tr key={i}><td>{row.referencia || row.nombre || (row.latitud + ' / ' + row.longitud)}</td><td>{row.finca}</td><td>{row.superficie}</td><td>{row.tenencia}</td><td>{row.valor}</td><td>{row.gravamen}</td></tr>)}
-                </Table>
                 {d.fincas.map((row, i) => {
                   const metrics = calcularAreaPerimetro(row.areaData?.points || []);
                   return <div className="print-location-detail" key={`print-location-${i}`}>
                     <div className="print-location-heading">FINCA / UNIDAD PRODUCTIVA {i + 1}</div>
-                    <div className="print-location-metrics">
-                      <span><b>Área delimitada:</b> {formatAreaHa(metrics.areaHa)} ha</span>
-                      <span><b>Perímetro:</b> {formatPerimetroM(metrics.perimeterM)} m</span>
-                      <span><b>Latitud:</b> {row.latitud || '—'}</span>
-                      <span><b>Longitud:</b> {row.longitud || '—'}</span>
+                    <div className="print-farm-grid">
+                      <div><b>Nombre / Identificación</b><span>{row.nombre || '—'}</span></div>
+                      <div><b>Tenencia</b><span>{row.tenencia || '—'}</span></div>
+                      <div><b>Superficie (ha)</b><span>{row.superficie || '—'}</span></div>
+                      <div><b>Departamento</b><span>{row.departamento || '—'}</span></div>
+                      <div><b>Distrito</b><span>{row.distrito || '—'}</span></div>
+                      <div><b>Cultivo / actividad</b><span>{row.cultivo || '—'}</span></div>
+                      <div className="wide"><b>Finca / Padrón / Cta. Cte. / Lote / Manzana</b><span>{row.finca || '—'}</span></div>
+                    </div>
+                    <div className="print-gps-box">
+                      <div className="print-subtitle">UBICACIÓN GPS / LOCALIDAD</div>
+                      <div className="print-gps-grid">
+                        <div><b>Plus Code compartido</b><span>{row.plusCode || '—'}</span></div>
+                        <div className="wide"><b>Referencia de localidad</b><span>{row.referencia || '—'}</span></div>
+                        <div><b>Latitud</b><span>{row.latitud || '—'}</span></div>
+                        <div><b>Longitud</b><span>{row.longitud || '—'}</span></div>
+                      </div>
                     </div>
                     <AreaPrintPreview points={row.areaData?.points || []} />
+                    <div className="print-location-results">
+                      <div><b>Área delimitada (ha)</b><strong>{formatAreaHa(metrics.areaHa)}</strong></div>
+                      <div><b>Perímetro</b><strong>{formatPerimetroM(metrics.perimeterM)}{metrics.perimeterM > 0 ? ' m' : ''}</strong></div>
+                    </div>
                     {row.observaciones && <div className="print-observations"><b>Observaciones:</b> {row.observaciones}</div>}
                   </div>;
                 })}
