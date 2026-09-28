@@ -261,14 +261,17 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
     if (!map || !L || !valid) return;
 
     const nueva = [la, lo];
+
     if (!markerRef.current) {
       markerRef.current = L.marker(nueva, { draggable: true }).addTo(map);
       markerRef.current.on('dragend', () => {
         const p = markerRef.current.getLatLng();
-        const inputEvent = new CustomEvent('ibc-map-coordinate-change', {
-          detail: { latitud: p.lat.toFixed(6), longitud: p.lng.toFixed(6) }
-        });
-        if (onCoordinateChangeRef.current) onCoordinateChangeRef.current(inputEvent.detail);
+        if (onCoordinateChangeRef.current) {
+          onCoordinateChangeRef.current({
+            latitud: p.lat.toFixed(6),
+            longitud: p.lng.toFixed(6)
+          });
+        }
       });
     } else {
       markerRef.current.setLatLng(nueva);
@@ -278,7 +281,23 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
       'Ubicación registrada<br><strong>' + la.toFixed(6) + ', ' + lo.toFixed(6) + '</strong>'
     );
 
+    // Solo una modificación real de coordenadas debe recentrar el mapa.
+    // Los clics de delimitación NO deben mover la vista.
     map.setView(nueva, Math.max(map.getZoom(), 16), { animate: false });
+  }, [lat, lon]);
+
+  useEffect(() => {
+    const map = mapInstance.current;
+    const L = window.L;
+    if (!map || !L) return;
+
+    // Mientras se delimitan vértices, el arrastre del mapa queda bloqueado.
+    // Así cada clic queda exactamente donde el usuario lo coloca.
+    if (area?.drawing && !area?.closed) {
+      map.dragging.disable();
+    } else {
+      map.dragging.enable();
+    }
 
     pointMarkersRef.current.forEach(m => map.removeLayer(m));
     pointMarkersRef.current = [];
@@ -288,25 +307,27 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
       polygonRef.current = null;
     }
 
-    if (points.length) {
-      pointMarkersRef.current = points.map(p =>
+    const currentPoints = Array.isArray(area?.points) ? area.points : [];
+
+    if (currentPoints.length) {
+      pointMarkersRef.current = currentPoints.map(p =>
         L.circleMarker([Number(p.lat), Number(p.lon)], {
-          radius: 4,
+          radius: 5,
           weight: 2,
           fillOpacity: 0.9
         }).addTo(map)
       );
 
-      if (points.length >= 2) {
+      if (currentPoints.length >= 2) {
         polygonRef.current = L.polygon(
-          points.map(p => [Number(p.lat), Number(p.lon)]),
+          currentPoints.map(p => [Number(p.lat), Number(p.lon)]),
           { weight: 3, fillOpacity: 0.24 }
         ).addTo(map);
       }
     }
 
-    setTimeout(() => map.invalidateSize(), 50);
-  }, [lat, lon, pointsKey, area?.drawing, area?.closed]);
+    setTimeout(() => map.invalidateSize({ pan: false, animate: false }), 30);
+  }, [pointsKey, area?.drawing, area?.closed]);
 
   return (
     <div className="satellite-map-container">
