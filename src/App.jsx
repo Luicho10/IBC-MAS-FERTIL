@@ -169,9 +169,6 @@ function PageFooter() {
 const PLUS_ALPHABET = '23456789CFGHJMPQRVWX';
 const PLUS_RESOLUTIONS = [20, 1, 0.05, 0.0025, 0.000125];
 
-const PLUS_ALPHABET = '23456789CFGHJMPQRVWX';
-const PLUS_RESOLUTIONS = [20, 1, 0.05, 0.0025, 0.000125];
-
 function encodePlusCode(lat, lon) {
   let la = Number(lat);
   let lo = Number(lon);
