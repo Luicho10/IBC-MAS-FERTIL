@@ -29,7 +29,11 @@ function Section({ number, title, children }) {
   return <section className="section"><h2>{number}. {title}</h2>{children}</section>;
 }
 
-function mapUrl(lat, lon) { const la = Number(lat), lo = Number(lon); if (!Number.isFinite(la) || !Number.isFinite(lo)) return ''; const d = 0.006; return `https://www.openstreetmap.org/export/embed.html?bbox=${lo-d}%2C${la-d}%2C${lo+d}%2C${la+d}&layer=mapnik&marker=${la}%2C${lo}`; }\nfunction openMap(lat, lon) { if (lat && lon) window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`, '_blank'); }\nfunction LocationMap({ lat, lon }) { const src = mapUrl(lat, lon); return src ? <iframe className="location-map" title="Verificación de ubicación" src={src} loading="lazy" /> : <div className="location-map-empty">Ingrese latitud y longitud para visualizar la ubicación.</div>; }\n\nfunction Table({ heads, children, className = '' }) {
+function mapUrl(lat, lon) { const la = Number(lat), lo = Number(lon); if (!Number.isFinite(la) || !Number.isFinite(lo)) return ''; const d = 0.006; return `https://www.openstreetmap.org/export/embed.html?bbox=${lo-d}%2C${la-d}%2C${lo+d}%2C${la+d}&layer=mapnik&marker=${la}%2C${lo}`; }
+function openMap(lat, lon) { if (lat && lon) window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`, '_blank'); }
+function LocationMap({ lat, lon }) { const src = mapUrl(lat, lon); return src ? <iframe className="location-map" title="Verificación de ubicación" src={src} loading="lazy" /> : <div className="location-map-empty">Ingrese latitud y longitud para visualizar la ubicación.</div>; }
+
+function Table({ heads, children, className = '' }) {
   return <div className={`table-wrap ${className}`}><table><thead><tr>{heads.map(head => <th key={head}>{head}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
 }
 
@@ -54,7 +58,8 @@ export default function App() {
 
   const set = (key, value) => setD(prev => ({ ...prev, [key]: value }));
   const setRow = (collection, index, field, value) => setD(prev => ({ ...prev, [collection]: prev[collection].map((row, i) => i === index ? { ...row, [field]: value } : row) }));
-  const addRow = (collection, factory) => setD(prev => ({ ...prev, [collection]: [...prev[collection], factory()] }));\n  const obtenerUbicacion = (index) => { if (!navigator.geolocation) return; navigator.geolocation.getCurrentPosition(pos => { setD(prev => ({ ...prev, fincas: prev.fincas.map((row, i) => i === index ? { ...row, latitud: pos.coords.latitude.toFixed(6), longitud: pos.coords.longitude.toFixed(6) } : row) })); }, () => {}); };
+  const addRow = (collection, factory) => setD(prev => ({ ...prev, [collection]: [...prev[collection], factory()] }));
+  const obtenerUbicacion = (index) => { if (!navigator.geolocation) return; navigator.geolocation.getCurrentPosition(pos => { setD(prev => ({ ...prev, fincas: prev.fincas.map((row, i) => i === index ? { ...row, latitud: pos.coords.latitude.toFixed(6), longitud: pos.coords.longitude.toFixed(6) } : row) })); }, () => {}); };
   const removeRow = (collection, index) => setD(prev => ({ ...prev, [collection]: prev[collection].filter((_, i) => i !== index) }));
   const nuevo = () => { setD(nuevoEstado()); setPage(1); };
 
