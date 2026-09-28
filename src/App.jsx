@@ -187,15 +187,22 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
         zoomControl: true
       }).setView([initialLat, initialLon], initialZoom);
 
-      L.tileLayer(
+      const satelliteLayer = L.tileLayer(
         'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
           minZoom: 1,
           maxZoom: 19,
           maxNativeZoom: 19,
+          keepBuffer: 8,
+          updateWhenIdle: false,
+          updateWhenZooming: true,
           attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
         }
       ).addTo(map);
+
+      satelliteLayer.on('tileerror', () => {
+        setTimeout(() => satelliteLayer.redraw(), 1200);
+      });
 
       mapInstance.current = map;
 
@@ -225,7 +232,13 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
         }
       });
 
-      setTimeout(() => map.invalidateSize(), 100);
+      const resizeObserver = new ResizeObserver(() => {
+        map.invalidateSize({ pan: false, animate: false });
+      });
+      resizeObserver.observe(mapRef.current);
+
+      setTimeout(() => map.invalidateSize({ pan: false, animate: false }), 100);
+      setTimeout(() => map.invalidateSize({ pan: false, animate: false }), 500);
     }).catch(() => {
       if (!cancelled && mapRef.current) {
         mapRef.current.innerHTML = '<div class="map-leaflet-error">No se pudo cargar el mapa satelital. Verifique su conexión a Internet.</div>';
