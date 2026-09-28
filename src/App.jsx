@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const finca = () => ({ nombre: '', tenencia: '', departamento: '', distrito: '', cultivo: '', observaciones: '', plusCode: '', referencia: '', latitud: '', longitud: '', finca: '', superficie: '', valor: '', gravamen: '', area: '', perimetro: '' });
+const finca = () => ({ nombre: '', tenencia: '', departamento: '', distrito: '', cultivo: '', observaciones: '', plusCode: '', referencia: '', latitud: '', longitud: '', finca: '', superficie: '', valor: '', gravamen: '', area: '', perimetro: '', areaData: { drawing: false, points: [] } });
 const bien = () => ({ tipo: '', marca: '', anio: '', valor: '', deuda: '' });
 const ganado = () => ({ especie: '', cantidad: '', unitario: '', total: '', gravamen: '' });
 const cultivoBase = ['SOJA', 'MAIZ', 'TRIGO', 'CHIA', 'GIRASOL', 'SESAMO', 'MANI', 'CAÑA', 'PASTURA'];
@@ -29,22 +29,50 @@ function Section({ number, title, children }) {
   return <section className="section"><h2>{number}. {title}</h2>{children}</section>;
 }
 
-function mapUrl(lat, lon) {
-  const la = Number(lat), lo = Number(lon);
-  if (!Number.isFinite(la) || !Number.isFinite(lo)) return '';
-  return `https://www.google.com/maps?q=${la},${lo}&t=k&z=16&output=embed`;
+function tileXY(lat, lon, zoom) {
+  const n = 2 ** zoom;
+  const x = ((lon + 180) / 360) * n;
+  const latRad = lat * Math.PI / 180;
+  const y = ((1 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2) * n;
+  return { x, y };
 }
-function openMap(lat, lon) {
-  if (lat && lon) window.open(`https://www.google.com/maps/@${lat},${lon},16z/data=!3m1!1e3`, '_blank');
+function SatelliteMap({ lat, lon, area, onAreaChange }) {
+  const la = Number(lat), lo = Number(lon), zoom = 15, size = 256;
+  const valid = Number.isFinite(la) && Number.isFinite(lo);
+  const center = valid ? tileXY(la, lo, zoom) : { x: 0, y: 0 };
+  const baseX = Math.floor(center.x), baseY = Math.floor(center.y), n = 2 ** zoom;
+  const tiles = [];
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+    const x=baseX+dx, y=baseY+dy, wx=((x%n)+n)%n;
+    if(y>=0&&y<n) tiles.push({x:wx,y,left:(dx+1)*size,top:(dy+1)*size,key:x+'-'+y});
+  }
+  const markerLeft=valid ? size+(center.x-baseX)*size : size;
+  const markerTop=valid ? size+(center.y-baseY)*size : size;
+  const points=Array.isArray(area?.points)?area.points:[];
+  const polygon=points.map(p=>{const t=tileXY(Number(p.lat),Number(p.lon),zoom);return (size+(t.x-baseX)*size)+','+(size+(t.y-baseY)*size)}).join(' ');
+  const addPoint=e=>{
+    if(!area?.drawing||!valid)return;
+    const r=e.currentTarget.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
+    const worldX=baseX+(px-size)/size, worldY=baseY+(py-size)/size;
+    const lon2=worldX/n*360-180, lat2=(180/Math.PI)*Math.atan(Math.sinh(Math.PI*(1-2*worldY/n)));
+    onArea({...area,points:[...points,{lat:lat2.toFixed(6),lon:lon2.toFixed(6)}]});
+  };
+  return <div className="satellite-map-container" onClick={addPoint}>
+    {valid ? tiles.map(t=><img key={t.key} className="satellite-tile" src={`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`} style={{left:t.left,top:t.top}} alt="" />) : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
+    {valid&&<div className="map-marker" style={{left:markerLeft,top:markerTop}}/>}
+    {valid&&points.length>1&&<svg className="map-overlay" viewBox="0 0 768 768" preserveAspectRatio="none"><polygon points={polygon}/></svg>}
+    <div className="map-zoom"><button type="button">+</button><button type="button">−</button></div>
+    <div className="map-layer">Mapa satelital</div>
+    <div className="map-attribution">© Esri, Maxar, Earthstar Geographics</div>
+  </div>;
 }
-function LocationMap({ lat, lon }) {
-  const src = mapUrl(lat, lon);
-  return src
-    ? <div className="satellite-map-wrap">
-        <iframe className="location-map satellite-map" title="Vista satelital de la ubicación" src={src} loading="lazy" />
-        <div className="satellite-badge">VISTA SATELITAL</div>
-      </div>
-    : <div className="location-map-empty">Ingrese latitud y longitud para visualizar la ubicación.</div>;
+function openMap(lat, lon) { if(lat&&lon) window.open(`https://www.google.com/maps/@${lat},${lon},16z/data=!3m1!1e3`,'_blank'); }
+function LocationMap({ row, onAreaChange }) {
+  return <div className="map-verification">
+    <div className="map-title"><b>VERIFICACIÓN DE UBICACIÓN</b><small>Haga clic sobre el mapa para marcar manualmente la ubicación.</small><button type="button" className="map-satellite-pill">Mapa satelital</button></div>
+    <SatelliteMap lat={row.latitud} lon={row.longitud} area={row.areaData} onAreaChange={onAreaChange}/>
+    <div className="map-actions"><button type="button" className="area-btn" onClick={()=>onAreaChange({...row.areaData,drawing:true,points:row.areaData?.points||[]})}>▱ Delimitar área</button><button type="button" className="area-btn secondary" onClick={()=>onAreaChange({...row.areaData,drawing:false})}>Cerrar área</button><button type="button" className="area-delete" onClick={()=>onAreaChange({drawing:false,points:[]})}>Borrar área</button></div>
+  </div>;
 }
 
 function Table({ heads, children, className = '' }) {
@@ -129,14 +157,15 @@ export default function App() {
                 <div className="locations-head"><div><b>UBICACIONES PRODUCTIVAS ({d.fincas.length})</b><small>Registrar cada finca o unidad productiva con sus datos y georreferenciación.</small></div><button className="location-add" onClick={() => addRow('fincas', finca)}>+ Agregar finca / ubicación</button></div>
                 {d.fincas.map((row, i) => <div className="location-card" key={i}>
                   <div className="location-card-title"><b>FINCA / UNIDAD PRODUCTIVA {i + 1}</b>{d.fincas.length > 1 && <button className="remove-location" onClick={() => removeRow('fincas', i)}>×</button>}</div>
-                  <div className="location-grid">
-                    <Field label="Nombre / Identificación" value={row.nombre} onChange={v => setRow('fincas', i, 'nombre', v)} placeholder="Ej.: Finca San José" />
-                    <label className="field"><span>Tenencia</span><select value={row.tenencia || ''} onChange={e => setRow('fincas', i, 'tenencia', e.target.value)}><option value="">Seleccionar</option><option>Propia</option><option>Arrendada</option><option>Comodato</option><option>Otra</option></select></label>
-                    <Field label="Departamento" value={row.departamento} onChange={v => setRow('fincas', i, 'departamento', v)} />
-                    <Field label="Distrito" value={row.distrito} onChange={v => setRow('fincas', i, 'distrito', v)} />
-                    <Field label="Cultivo / actividad principal" value={row.cultivo} onChange={v => setRow('fincas', i, 'cultivo', v)} />
-                    <Field label="Finca / Padrón / Cta. Cte. / Lote / Manzana" value={row.finca} onChange={v => setRow('fincas', i, 'finca', v)} className="full" />
+                  <div className="location-model-grid">
+                    <Field label="Nombre / identificación" value={row.nombre} onChange={v=>setRow('fincas',i,'nombre',v)} placeholder="Ej.: Finca San José"/>
+                    <label className="field"><span>Tenencia</span><select value={row.tenencia||''} onChange={e=>setRow('fincas',i,'tenencia',e.target.value)}><option value="">Seleccione</option><option>Propia</option><option>Arrendada</option><option>Comodato</option><option>Otra</option></select></label>
+                    <Field label="Superficie (ha)" value={row.superficie} onChange={v=>setRow('fincas',i,'superficie',v)} placeholder="Ej.: 180"/>
+                    <Field label="Departamento" value={row.departamento} onChange={v=>setRow('fincas',i,'departamento',v)}/>
+                    <Field label="Distrito" value={row.distrito} onChange={v=>setRow('fincas',i,'distrito',v)}/>
+                    <Field label="Cultivo / actividad" value={row.cultivo} onChange={v=>setRow('fincas',i,'cultivo',v)} placeholder="Ej.: Soja"/>
                   </div>
+                  <div className="location-registry"><Field label="Finca / Padrón / Cta. Cte. / Lote / Manzana" value={row.finca} onChange={v=>setRow('fincas',i,'finca',v)}/></div>
                   <div className="location-gps">
                     <div className="location-gps-head"><b>UBICACIÓN GPS / LOCALIDAD</b><button className="gps-current" onClick={() => obtenerUbicacion(i)}>Obtener ubicación actual</button></div>
                     <div className="location-gps-grid">
@@ -146,16 +175,12 @@ export default function App() {
                       <Field label="Longitud" value={row.longitud} onChange={v => setRow('fincas', i, 'longitud', v)} />
                     </div>
                     <div className="gps-actions"><button className="gps-search" onClick={() => openMap(row.latitud, row.longitud)}>Abrir en mapa</button><span>Puede ingresar las coordenadas compartidas por el cliente o utilizar el GPS del dispositivo.</span></div>
-                    <div className="map-title"><b>VERIFICACIÓN DE UBICACIÓN</b><small>La posición se visualiza automáticamente con las coordenadas cargadas.</small></div>
-                    <LocationMap lat={row.latitud} lon={row.longitud} />
+                    <LocationMap row={row} onAreaChange={v=>setRow('fincas',i,'areaData',v)} />
                   </div>
                   <div className="location-bottom-grid">
-                    <Field label="Superficie ha." value={row.superficie} onChange={v => setRow('fincas', i, 'superficie', v)} />
-                    <Field label="Valor estimado Gs/Usd" value={row.valor} onChange={v => setRow('fincas', i, 'valor', v)} />
-                    <label className="field"><span>Hipoteca / Gravamen</span><select value={row.gravamen || ''} onChange={e => setRow('fincas', i, 'gravamen', e.target.value)}><option value="">Seleccionar</option><option>NO</option><option>SI</option></select></label>
-                    <Field label="Área delimitada" value={row.area} onChange={v => setRow('fincas', i, 'area', v)} placeholder="Opcional" />
-                    <Field label="Perímetro" value={row.perimetro} onChange={v => setRow('fincas', i, 'perimetro', v)} placeholder="Opcional" />
-                    <Field label="Observaciones" value={row.observaciones} onChange={v => setRow('fincas', i, 'observaciones', v)} className="full" />
+                    <Field label="Valor estimado Gs/Usd" value={row.valor} onChange={v=>setRow('fincas',i,'valor',v)}/>
+                    <label className="field"><span>Hipoteca / Gravamen</span><select value={row.gravamen||''} onChange={e=>setRow('fincas',i,'gravamen',e.target.value)}><option value="">Seleccionar</option><option>NO</option><option>SI</option></select></label>
+                    <Field label="Observaciones" value={row.observaciones} onChange={v=>setRow('fincas',i,'observaciones',v)} className="full"/>
                   </div>
                 </div>)}
               </div>
