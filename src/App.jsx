@@ -60,6 +60,100 @@ function cargarLeaflet() {
   });
 }
 
+
+const EARTH_RADIUS_M = 6371008.8;
+
+function distanciaHaversine(p1, p2) {
+  const lat1 = Number(p1?.lat) * Math.PI / 180;
+  const lat2 = Number(p2?.lat) * Math.PI / 180;
+  const dLat = (Number(p2?.lat) - Number(p1?.lat)) * Math.PI / 180;
+  const dLon = (Number(p2?.lon) - Number(p1?.lon)) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+function calcularAreaPerimetro(points = []) {
+  const validPoints = points
+    .map(p => ({ lat: Number(p?.lat), lon: Number(p?.lon) }))
+    .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+
+  if (validPoints.length < 3) return { areaHa: 0, perimeterM: 0 };
+
+  const lat0 = validPoints.reduce((s, p) => s + p.lat, 0) / validPoints.length * Math.PI / 180;
+  const projected = validPoints.map(p => ({
+    x: EARTH_RADIUS_M * (p.lon * Math.PI / 180) * Math.cos(lat0),
+    y: EARTH_RADIUS_M * (p.lat * Math.PI / 180)
+  }));
+
+  let twiceArea = 0;
+  for (let i = 0; i < projected.length; i++) {
+    const a = projected[i];
+    const b = projected[(i + 1) % projected.length];
+    twiceArea += a.x * b.y - b.x * a.y;
+  }
+
+  let perimeterM = 0;
+  for (let i = 0; i < validPoints.length; i++) {
+    perimeterM += distanciaHaversine(validPoints[i], validPoints[(i + 1) % validPoints.length]);
+  }
+
+  return {
+    areaHa: Math.abs(twiceArea) / 2 / 10000,
+    perimeterM
+  };
+}
+
+function formatAreaHa(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n.toLocaleString('es-PY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+}
+
+function formatPerimetroM(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n.toLocaleString('es-PY', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—';
+}
+
+function AreaPrintPreview({ points = [] }) {
+  const validPoints = points
+    .map(p => ({ lat: Number(p?.lat), lon: Number(p?.lon) }))
+    .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+
+  if (validPoints.length < 3) return null;
+
+  const minLat = Math.min(...validPoints.map(p => p.lat));
+  const maxLat = Math.max(...validPoints.map(p => p.lat));
+  const minLon = Math.min(...validPoints.map(p => p.lon));
+  const maxLon = Math.max(...validPoints.map(p => p.lon));
+  const spanLat = Math.max(maxLat - minLat, 0.00001);
+  const spanLon = Math.max(maxLon - minLon, 0.00001);
+  const width = 360;
+  const height = 150;
+  const pad = 18;
+  const path = validPoints.map((p, i) => {
+    const x = pad + ((p.lon - minLon) / spanLon) * (width - pad * 2);
+    const y = height - pad - ((p.lat - minLat) / spanLat) * (height - pad * 2);
+    return `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+  }).join(' ') + ' Z';
+
+  return (
+    <div className="area-print-preview">
+      <div className="area-print-title">ÁREA DELIMITADA — CROQUIS</div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Croquis del área delimitada">
+        <rect x="0" y="0" width={width} height={height} className="area-print-background" />
+        <path d={path} className="area-print-polygon" />
+        {validPoints.map((p, i) => {
+          const x = pad + ((p.lon - minLon) / spanLon) * (width - pad * 2);
+          const y = height - pad - ((p.lat - minLat) / spanLat) * (height - pad * 2);
+          return <circle key={i} cx={x} cy={y} r="3" className="area-print-point" />;
+        })}
+      </svg>
+      <div className="area-print-coordinates">
+        {validPoints.map((p, i) => `P${i + 1}: ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`).join('  •  ')}
+      </div>
+    </div>
+  );
+}
+
 function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -71,6 +165,7 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
   const lo = Number(String(lon ?? '').replace(',', '.'));
   const valid = Number.isFinite(la) && Number.isFinite(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180;
   const points = Array.isArray(area?.points) ? area.points : [];
+  const pointsKey = JSON.stringify(points);
   const areaRef = useRef(area);
   const onAreaChangeRef = useRef(onAreaChange);
   const onCoordinateChangeRef = useRef(onCoordinateChange);
@@ -179,7 +274,7 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
     }
 
     setTimeout(() => map.invalidateSize(), 50);
-  }, [lat, lon, points.length, area?.drawing, area?.closed]);
+  }, [lat, lon, pointsKey, area?.drawing, area?.closed]);
 
   return (
     <div className="satellite-map-container">
@@ -198,34 +293,35 @@ function LocationMap({ row, onAreaChange }) {
   const [points, setPoints] = useState(Array.isArray(initial.points) ? initial.points : []);
 
   const saveArea = (nextDrawing, nextClosed, nextPoints) => {
+    const metrics = calcularAreaPerimetro(nextPoints);
     setDrawing(nextDrawing);
     setClosed(nextClosed);
     setPoints(nextPoints);
-    onAreaChange({ drawing: nextDrawing, closed: nextClosed, points: nextPoints });
+    onAreaChange({
+      drawing: nextDrawing,
+      closed: nextClosed,
+      points: nextPoints,
+      areaHa: metrics.areaHa,
+      perimeterM: metrics.perimeterM
+    });
   };
 
-  const startDrawing = () => {
-    saveArea(true, false, points);
-  };
+  const startDrawing = () => saveArea(true, false, points);
 
   const closeDrawing = () => {
-    if (points.length < 3) {
-      saveArea(false, true, points);
-      return;
-    }
+    if (points.length < 3) return;
     saveArea(false, true, points);
   };
 
-  const clearDrawing = () => {
-    saveArea(false, false, []);
-  };
+  const clearDrawing = () => saveArea(false, false, []);
 
   const handleMapArea = next => {
     if (!drawing || closed) return;
     const nextPoints = Array.isArray(next?.points) ? next.points : points;
-    setPoints(nextPoints);
-    onAreaChange({ drawing: true, closed: false, points: nextPoints });
+    saveArea(true, false, nextPoints);
   };
+
+  const metrics = calcularAreaPerimetro(points);
 
   return <div className="map-verification">
     <div className="map-title">
@@ -242,19 +338,35 @@ function LocationMap({ row, onAreaChange }) {
       area={{ drawing, closed, points }}
       onAreaChange={handleMapArea}
       onCoordinateChange={v => {
-        onAreaChange({ ...row.areaData, drawing: false, closed: row.areaData?.closed || false, points: row.areaData?.points || [] });
+        onAreaChange({
+          ...row.areaData,
+          drawing: false,
+          closed: row.areaData?.closed || false,
+          points: row.areaData?.points || [],
+          areaHa: row.areaData?.areaHa || 0,
+          perimeterM: row.areaData?.perimeterM || 0
+        });
         window.dispatchEvent(new CustomEvent('ibc-finca-coordinate-change', { detail: v }));
       }}
     />
 
     <div className="map-status">
-      {drawing ? 'Modo delimitación activo: haga clic sobre el mapa para agregar puntos.' : closed ? 'Área cerrada. Puede borrar el área y volver a delimitar.' : 'Seleccione “Delimitar área” para comenzar.'}
+      {drawing
+        ? 'Modo delimitación activo: haga clic sobre el mapa para agregar puntos.'
+        : closed
+          ? 'Área cerrada. Puede borrar el área y volver a delimitar.'
+          : 'Seleccione “Delimitar área” para comenzar.'}
     </div>
 
     <div className="map-actions">
       <button type="button" className={`area-btn ${drawing ? 'active' : ''}`} onClick={startDrawing}>▱ Delimitar área</button>
-      <button type="button" className="area-btn secondary" onClick={closeDrawing}>Cerrar área</button>
-      <button type="button" className="area-delete" onClick={clearDrawing}>Borrar área</button>
+      <button type="button" className="area-btn secondary" onClick={closeDrawing} disabled={points.length < 3}>Cerrar área</button>
+      <button type="button" className="area-delete" onClick={clearDrawing} disabled={!points.length}>Borrar área</button>
+    </div>
+
+    <div className="area-results">
+      <label><span>Área delimitada (ha)</span><strong>{formatAreaHa(metrics.areaHa)}</strong></label>
+      <label><span>Perímetro</span><strong>{formatPerimetroM(metrics.perimeterM)}{metrics.perimeterM > 0 ? ' m' : ''}</strong></label>
     </div>
   </div>;
 }
@@ -470,10 +582,29 @@ export default function App() {
                     </div>
                     <div className="gps-actions"><button className="gps-search" onClick={() => setRow('fincas', i, 'mapRefresh', Date.now())}>Buscar ubicación por coordenadas</button><span>Puede ingresar las coordenadas compartidas por el cliente o utilizar el GPS del dispositivo.</span></div>
                     <LocationMap row={row} onAreaChange={v=>setRow('fincas',i,'areaData',v)} />
+                    <Field label="Observaciones" value={row.observaciones} onChange={v=>setRow('fincas', i, 'observaciones', v)} placeholder="Referencia de acceso, camino, colonia, etc." />
                   </div>
                 </div>)}
               </div>
-              <div className="locations-print"><Table heads={['Ubicación GPS / Localidad', 'Finca / Padrón / Cta. Cte. / Lote / Manzana', 'Superficie ha.', 'Tenencia', 'Valor estimado Gs/Usd', 'Hipoteca / Gravamen']}>{d.fincas.map((row, i) => <tr key={i}><td>{row.referencia || row.nombre || (row.latitud + ' / ' + row.longitud)}</td><td>{row.finca}</td><td>{row.superficie}</td><td>{row.tenencia}</td><td>{row.valor}</td><td>{row.gravamen}</td></tr>)}</Table></div>
+              <div className="locations-print">
+                <Table heads={['Ubicación GPS / Localidad', 'Finca / Padrón / Cta. Cte. / Lote / Manzana', 'Superficie ha.', 'Tenencia', 'Valor estimado Gs/Usd', 'Hipoteca / Gravamen']}>
+                  {d.fincas.map((row, i) => <tr key={i}><td>{row.referencia || row.nombre || (row.latitud + ' / ' + row.longitud)}</td><td>{row.finca}</td><td>{row.superficie}</td><td>{row.tenencia}</td><td>{row.valor}</td><td>{row.gravamen}</td></tr>)}
+                </Table>
+                {d.fincas.map((row, i) => {
+                  const metrics = calcularAreaPerimetro(row.areaData?.points || []);
+                  return <div className="print-location-detail" key={`print-location-${i}`}>
+                    <div className="print-location-heading">FINCA / UNIDAD PRODUCTIVA {i + 1}</div>
+                    <div className="print-location-metrics">
+                      <span><b>Área delimitada:</b> {formatAreaHa(metrics.areaHa)} ha</span>
+                      <span><b>Perímetro:</b> {formatPerimetroM(metrics.perimeterM)} m</span>
+                      <span><b>Latitud:</b> {row.latitud || '—'}</span>
+                      <span><b>Longitud:</b> {row.longitud || '—'}</span>
+                    </div>
+                    <AreaPrintPreview points={row.areaData?.points || []} />
+                    {row.observaciones && <div className="print-observations"><b>Observaciones:</b> {row.observaciones}</div>}
+                  </div>;
+                })}
+              </div>
             </Section>
             <Section number="2.1" title="MÓDULO COMERCIAL Y DE SERVICIOS"><div className="label-line">REVENTA:</div><Checks items={['Agroquímicos', 'Fertilizantes', 'Semillas']} value={d.reventa} onChange={v => set('reventa', v)} /><div className="label-line">SERVICIOS:</div><Checks items={['Consultoría', 'Maquinaria Pesada', 'Logística', 'Asistencia Técnica', 'Acopio Silo']} value={d.servicios} onChange={v => set('servicios', v)} /></Section>
             <Section number="3" title="PLAN DE PRODUCCIÓN"><Table heads={['CULTIVO', 'Has. ANT.', 'Rnd. Kg', 'Has. Actual', 'TN Estimada']} className="production-table">{d.prod.map((row, i) => <tr key={row.cultivo}><td><b>{row.cultivo}</b></td>{['ant', 'rnd', 'actual', 'tn'].map(field => <td key={field}><input value={row[field]} onChange={e => setRow('prod', i, field, e.target.value)} /></td>)}</tr>)}</Table></Section><PageFooter />
