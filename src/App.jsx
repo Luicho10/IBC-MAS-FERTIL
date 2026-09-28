@@ -68,7 +68,7 @@ function SatelliteMap({ lat, lon, area, onAreaChange }) {
     onArea({...area,points:[...points,{lat:lat2.toFixed(6),lon:lon2.toFixed(6)}]});
   };
   return <div className="satellite-map-container" onClick={addPoint}>
-    {valid ? <div className="satellite-canvas">{tileData.map(t=><img key={t.key} className="satellite-tile" src={`https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`} style={{left:t.left,top:t.top}} alt="" />)}</div> : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
+    {valid ? <div className="satellite-canvas">{tileData.map(t=><img key={t.key} className="satellite-tile" src={`https://wi.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`} onError={e => { const fallbacks = [`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`, `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`]; const n = Number(e.currentTarget.dataset.fallback || 0); if (n < fallbacks.length) { e.currentTarget.dataset.fallback = String(n + 1); e.currentTarget.src = fallbacks[n]; } }} style={{left:t.left,top:t.top}} alt="" />)}</div> : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
     {valid && <div className="map-marker" style={{left:markerX,top:markerY}} />}
     {valid && points.length>1 && <svg className="map-overlay" viewBox={`0 0 ${mapW} ${mapH}`} preserveAspectRatio="none"><polygon points={polygon}/></svg>}
     <div className="map-zoom"><button type="button" onClick={e=>{e.stopPropagation();setZoom(z=>Math.min(19,z+1))}}>+</button><button type="button" onClick={e=>{e.stopPropagation();setZoom(z=>Math.max(10,z-1))}}>−</button></div>
@@ -161,28 +161,78 @@ function PageFooter() {
   return <footer>FORM. IBCTIM. V6 MFS SETIEMBRE 26</footer>;
 }
 
-function convertirPlusCode(codigo, referencia='') {
-  const raw=String(codigo||'').trim().toUpperCase().replace(/ /g,'');
-  const plus=raw.indexOf('+');
-  if(plus<0) return null;
-  const clean=raw.replace('+','');
-  const alphabet='23456789CFGHJMPQRVWX';
-  const pairRes=[20,1,0.05,0.0025,0.000125];
-  let code=clean;
-  if(code.length<8){
-    const ref=String(referencia||'').trim();
-    if(!ref) return null;
+const PLUS_ALPHABET = '23456789CFGHJMPQRVWX';
+const PLUS_RESOLUTIONS = [20, 1, 0.05, 0.0025, 0.000125];
+
+function encodePlusCode(lat, lon) {
+  let la = Number(lat);
+  let lo = Number(lon);
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
+  la = Math.max(-90, Math.min(90, la)) + 90;
+  lo = ((lo + 180) % 360 + 360) % 360;
+  let code = '';
+  for (let i = 0; i < PLUS_RESOLUTIONS.length; i++) {
+    const r = PLUS_RESOLUTIONS[i];
+    const latDigit = Math.min(19, Math.floor(la / r));
+    const lonDigit = Math.min(19, Math.floor(lo / r));
+    code += PLUS_ALPHABET[latDigit] + PLUS_ALPHABET[lonDigit];
+    la -= latDigit * r;
+    lo -= lonDigit * r;
+  }
+  return code.slice(0, 8) + '+' + code.slice(8, 10);
+}
+
+function decodePlusCode(fullCode) {
+  const raw = String(fullCode || '').toUpperCase().replace(/\\s/g, '');
+  const plus = raw.indexOf('+');
+  if (plus < 0) return null;
+  const code = raw.replace('+', '');
+  if (code.length < 8) return null;
+  const digits = code.slice(0, 10);
+  let lat = -90, lon = -180;
+  for (let i = 0; i < 10 && i < digits.length; i += 2) {
+    const a = PLUS_ALPHABET.indexOf(digits[i]);
+    const b = PLUS_ALPHABET.indexOf(digits[i + 1]);
+    if (a < 0 || b < 0) return null;
+    const r = PLUS_RESOLUTIONS[i / 2];
+    lat += a * r;
+    lon += b * r;
+  }
+  const r = PLUS_RESOLUTIONS[4];
+  return { latitud: (lat + r / 2).toFixed(6), longitud: (lon + r / 2).toFixed(6) };
+}
+
+async function convertirPlusCode(codigo, referencia = '') {
+  const raw = String(codigo || '').trim().toUpperCase().replace(/\\s/g, '');
+  const plus = raw.indexOf('+');
+  if (plus < 0) return null;
+
+  // Full Plus Code: decode directly.
+  const before = raw.slice(0, plus);
+  if (before.length >= 8) return decodePlusCode(raw);
+
+  // Short Plus Code (e.g. 86Q8+PF): use the locality/reference as recovery area.
+  if (before.length < 4) return null;
+  const ref = String(referencia || '').trim();
+  if (!ref) return null;
+
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=py&q=' + encodeURIComponent(ref);
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!Array.isArray(data) || !data[0]) return null;
+
+    const refLat = Number(data[0].lat);
+    const refLon = Number(data[0].lon);
+    const refFull = encodePlusCode(refLat, refLon);
+    if (!refFull) return null;
+
+    const recovered = refFull.slice(0, 8 - before.length) + before + raw.slice(plus + 1);
+    return decodePlusCode(recovered);
+  } catch {
     return null;
   }
-  const sep=code.length;
-  const first=code.slice(0,8);
-  let lat=-90,lon=-180;
-  for(let i=0;i<10 && i<first.length;i+=2){
-    const a=alphabet.indexOf(first[i]),b=alphabet.indexOf(first[i+1]);
-    if(a<0||b<0) return null;
-    const r=pairRes[i/2]; lat+=a*r; lon+=b*r;
-  }
-  return {latitud:(lat+pairRes[Math.min(4,Math.floor(first.length/2)-1)]/2).toFixed(6),longitud:(lon+pairRes[Math.min(4,Math.floor(first.length/2)-1)]/2).toFixed(6)};
 }
 
 export default function App() {
@@ -260,8 +310,8 @@ export default function App() {
                   <div className="location-gps">
                     <div className="location-gps-head"><b>UBICACIÓN GPS / LOCALIDAD</b><button className="gps-current" onClick={() => obtenerUbicacion(i)}>Obtener ubicación actual</button></div>
                     <div className="location-gps-grid">
-                      <div className="plus-code-field"><Field label="Plus Code compartido" value={row.plusCode} onChange={v => setRow('fincas', i, 'plusCode', v)} placeholder="Ej.: 86Q8+PF" /><button type="button" className="plus-convert" onClick={() => { const r=convertirPlusCode(row.plusCode,row.referencia); if(r){setRow('fincas',i,'latitud',r.latitud);setRow('fincas',i,'longitud',r.longitud);} else { alert('Ingrese un Plus Code completo para convertirlo a coordenadas.'); } }}>Convertir Plus Code</button></div>
-                      <Field label="Referencia de localidad" value={row.referencia} onChange={v => setRow('fincas', i, 'referencia', v)} placeholder="Ej.: 3 de Noviembre 2da Línea, Repatriación, Caaguazú" />
+                      <Field label="Plus Code compartido" value={row.plusCode} onChange={v => setRow('fincas', i, 'plusCode', v)} placeholder="Ej.: 86Q8+PF" />
+                      <div className="reference-plus-field"><Field label="Referencia de localidad" value={row.referencia} onChange={v => setRow('fincas', i, 'referencia', v)} placeholder="Ej.: 3 de Noviembre 2da Línea, Repatriación, Caaguazú" /><button type="button" className="plus-convert" onClick={async () => { const r=await convertirPlusCode(row.plusCode,row.referencia); if(r){setRow('fincas',i,'latitud',r.latitud);setRow('fincas',i,'longitud',r.longitud);} else { alert('No se pudo convertir el Plus Code. Para un código corto como 86Q8+PF, complete la referencia de localidad.'); } }}>Convertir Plus Code</button></div>
                     </div>
                     <div className="gps-row-secondary">
                       <Field label="Latitud" value={row.latitud} onChange={v => setRow('fincas', i, 'latitud', v)} />
