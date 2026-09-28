@@ -188,9 +188,12 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
       }).setView([initialLat, initialLon], initialZoom);
 
       L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'https://{s}.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
+          subdomains: ['server', 'services'],
+          minZoom: 1,
           maxZoom: 19,
+          maxNativeZoom: 19,
           attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
         }
       ).addTo(map);
@@ -368,8 +371,8 @@ function LocationMap({ row, onAreaChange, onCoordinateChange }) {
 
     <div className="map-actions">
       <button type="button" className={`area-btn ${drawing ? 'active' : ''}`} onClick={startDrawing}>▱ Delimitar área</button>
-      <button type="button" className="area-btn secondary" onClick={closeDrawing} disabled={points.length < 3}>Cerrar área</button>
-      <button type="button" className="area-delete" onClick={clearDrawing} disabled={!points.length}>Borrar área</button>
+      <button type="button" className="area-btn secondary" onClick={closeDrawing}>Cerrar área</button>
+      <button type="button" className="area-delete" onClick={clearDrawing}>Borrar área</button>
     </div>
 
     <div className="area-results">
