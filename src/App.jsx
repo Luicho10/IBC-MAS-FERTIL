@@ -33,8 +33,17 @@ function mapUrl(lat, lon) {
   const la = Number(lat), lo = Number(lon);
   if (!Number.isFinite(la) || !Number.isFinite(lo)) return '';
   const delta = 0.006;
-  const bbox = `${lo-delta},${la-delta},${lo+delta},${la+delta}`;
-  return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&imageSR=4326&size=1200,420&format=jpg&f=image&transparent=false`;
+  const bbox = [lo-delta, la-delta, lo+delta, la+delta].join(',');
+  const params = new URLSearchParams({
+    bbox,
+    bboxSR: '4326',
+    imageSR: '4326',
+    size: '1200,420',
+    format: 'jpg',
+    f: 'image',
+    dpi: '96'
+  });
+  return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?${params.toString()}`;
 }
 function openMap(lat, lon) {
   if (lat && lon) window.open(`https://www.google.com/maps/@${lat},${lon},16z/data=!3m1!1e3`, '_blank');
