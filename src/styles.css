@@ -218,3 +218,30 @@ footer{font-size:10px;text-align:left;margin:16px 0 0;color:#555}.screen-navigat
 .map-title b{font-size:11px!important}.map-title small{font-size:10px!important}
 .area-btn,.area-delete{font-size:11px!important}.area-results label span{font-size:10px!important}.area-results label strong{font-size:12px!important}
 }
+
+@media print{
+  .locations-print{display:block!important}
+  .print-location-detail{border:1px solid #c9ded4;border-radius:6px;padding:3mm;background:#fff;break-inside:avoid}
+  .print-location-heading{font-size:11px!important;font-weight:800;color:#17604b;background:#e6f3eb;padding:2.5mm 3mm;border-radius:4px;margin:-3mm -3mm 2.5mm}
+  .print-farm-grid{display:grid;grid-template-columns:1.5fr .8fr .8fr 1fr;gap:2mm 3mm;margin-bottom:2.5mm}
+  .print-farm-grid>div{border:1px solid #d2e3dc;border-radius:4px;background:#f7fbf9;padding:1.8mm 2mm;min-height:10mm}
+  .print-farm-grid>div.wide{grid-column:1/-1}
+  .print-farm-grid b,.print-gps-grid b{display:block;font-size:7.5px;color:#17604b;margin-bottom:1mm}
+  .print-farm-grid span,.print-gps-grid span{display:block;font-size:9px;color:#17355d;font-weight:600}
+  .print-gps-box{border:1px solid #c9ded4;border-radius:5px;background:#f7fbf9;padding:2.5mm;margin-bottom:2.5mm}
+  .print-subtitle{font-size:9px;font-weight:800;color:#17604b;margin-bottom:2mm}
+  .print-gps-grid{display:grid;grid-template-columns:1fr 2fr 1fr 1fr;gap:2mm 3mm}
+  .print-gps-grid>div{background:#fff;border:1px solid #d2e3dc;border-radius:4px;padding:1.5mm 2mm}
+  .print-gps-grid>div.wide{grid-column:2/4}
+  .area-print-preview{margin-top:2.5mm;border:1px solid #c9ded4;border-radius:5px;overflow:hidden}
+  .area-print-title{font-size:9px!important;font-weight:800;color:#17604b;background:#e6f3eb;padding:2mm 2.5mm}
+  .area-print-preview svg{width:100%!important;height:78mm!important;display:block;background:#dfe9e2}
+  .area-print-polygon{fill:rgba(44,126,255,.28);stroke:#1d73e8;stroke-width:4}
+  .area-print-point{fill:#2187d9;stroke:#fff;stroke-width:2}
+  .area-print-shade{fill:rgba(255,255,255,.04)}
+  .print-location-results{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-top:2.5mm}
+  .print-location-results>div{border:1px solid #b9d8ca;border-radius:5px;background:#eaf5ee;padding:2mm 2.5mm}
+  .print-location-results b{display:block;font-size:8px;color:#17604b;margin-bottom:1mm}
+  .print-location-results strong{display:block;font-size:11px;color:#17355d}
+  .print-observations{font-size:8.5px!important}
+}
