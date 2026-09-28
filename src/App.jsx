@@ -180,7 +180,7 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
 
       const initialLat = valid ? la : -23.4425;
       const initialLon = valid ? lo : -58.4438;
-      const initialZoom = valid ? 17 : 6;
+      const initialZoom = valid ? 16 : 6;
 
       const map = L.map(mapRef.current, {
         scrollWheelZoom: true,
