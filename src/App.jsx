@@ -40,39 +40,44 @@ function tileXY(lat, lon, zoom) {
 }
 function SatelliteMap({ lat, lon, area, onAreaChange }) {
   const [zoom, setZoom] = useState(15);
-  const la = Number(lat), lo = Number(lon), tileSize = 256;
+  const la = Number(lat), lo = Number(lon);
   const valid = Number.isFinite(la) && Number.isFinite(lo);
-  const n = 2 ** zoom;
-  const center = valid ? tileXY(la, lo, zoom) : { x: 0, y: 0 };
-  const baseX = Math.floor(center.x), baseY = Math.floor(center.y);
   const points = Array.isArray(area?.points) ? area.points : [];
-  const mapW = 1280, mapH = 768;
-  const tileData = [];
-  for (let dy=-1; dy<=1; dy++) for (let dx=-2; dx<=2; dx++) {
-    const tx=baseX+dx, ty=baseY+dy;
-    if(ty>=0 && ty<n) tileData.push({x:((tx%n)+n)%n,y:ty,left:(dx+2)*tileSize,top:(dy+1)*tileSize,key:tx+'-'+ty});
-  }
-  const markerX = valid ? 512 + (center.x-baseX)*tileSize : 640;
-  const markerY = valid ? 256 + (center.y-baseY)*tileSize : 384;
-  const worldToPixel = p => {
-    const t=tileXY(Number(p.lat),Number(p.lon),zoom);
-    return {x:512+(t.x-baseX)*tileSize,y:256+(t.y-baseY)*tileSize};
+  const mapW = 1200, mapH = 500;
+  const lonSpan = 0.055 * (15 / zoom);
+  const latSpan = 0.035 * (15 / zoom);
+  const bbox = valid ? [lo - lonSpan / 2, la - latSpan / 2, lo + lonSpan / 2, la + latSpan / 2].join(',') : '';
+  const imageUrl = valid
+    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=' + encodeURIComponent(bbox) + '&bboxSR=4326&imageSR=4326&size=1200,500&format=jpg&f=image'
+    : '';
+
+  const pointToPixel = p => ({
+    x: ((Number(p.lon) - (lo - lonSpan / 2)) / lonSpan) * mapW,
+    y: ((la + latSpan / 2) - Number(p.lat)) / latSpan * mapH
+  });
+  const marker = valid ? pointToPixel({ lat: la, lon: lo }) : { x: mapW / 2, y: mapH / 2 };
+  const polygon = points.map(pointToPixel).map(q => q.x + ',' + q.y).join(' ');
+
+  const addPoint = e => {
+    if (!area?.drawing || !valid || e.target.closest('button')) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - r.left) * (mapW / r.width);
+    const py = (e.clientY - r.top) * (mapH / r.height);
+    const lat2 = (la + latSpan / 2) - (py / mapH) * latSpan;
+    const lon2 = (lo - lonSpan / 2) + (px / mapW) * lonSpan;
+    onArea({ ...area, points: [...points, { lat: lat2.toFixed(6), lon: lon2.toFixed(6) }] });
   };
-  const polygon=points.map(p=>{const q=worldToPixel(p);return q.x+','+q.y}).join(' ');
-  const addPoint=e=>{
-    if(!area?.drawing||!valid||e.target.closest('button')) return;
-    const r=e.currentTarget.getBoundingClientRect();
-    const px=(e.clientX-r.left)*(mapW/r.width), py=(e.clientY-r.top)*(mapH/r.height);
-    const wx=baseX+(px-512)/tileSize, wy=baseY+(py-256)/tileSize;
-    const lon2=wx/n*360-180, lat2=(180/Math.PI)*Math.atan(Math.sinh(Math.PI*(1-2*wy/n)));
-    onArea({...area,points:[...points,{lat:lat2.toFixed(6),lon:lon2.toFixed(6)}]});
-  };
+
   return <div className="satellite-map-container" onClick={addPoint}>
-    {valid ? <div className="satellite-canvas">{tileData.map(t=><img key={t.key} className="satellite-tile" src={`https://wi.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`} onError={e => { const fallbacks = [`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`, `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`]; const n = Number(e.currentTarget.dataset.fallback || 0); if (n < fallbacks.length) { e.currentTarget.dataset.fallback = String(n + 1); e.currentTarget.src = fallbacks[n]; } }} style={{left:t.left,top:t.top}} alt="" />)}</div> : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
-    {valid && <div className="map-marker" style={{left:markerX,top:markerY}} />}
-    {valid && points.length>1 && <svg className="map-overlay" viewBox={`0 0 ${mapW} ${mapH}`} preserveAspectRatio="none"><polygon points={polygon}/></svg>}
-    <div className="map-zoom"><button type="button" onClick={e=>{e.stopPropagation();setZoom(z=>Math.min(19,z+1))}}>+</button><button type="button" onClick={e=>{e.stopPropagation();setZoom(z=>Math.max(10,z-1))}}>−</button></div>
-    <div className="map-layer">Mapa satelital</div><div className="map-attribution">© Esri, Maxar, Earthstar Geographics</div>
+    {valid ? <img className="satellite-static-image" src={imageUrl} alt="Vista satelital de la ubicación" /> : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
+    {valid && <div className="map-marker" style={{ left: marker.x, top: marker.y }} />}
+    {valid && points.length > 1 && <svg className="map-overlay" viewBox={`0 0 ${mapW} ${mapH}`} preserveAspectRatio="none"><polygon points={polygon}/></svg>}
+    <div className="map-zoom">
+      <button type="button" onClick={e => { e.stopPropagation(); setZoom(z => Math.min(18, z + 1)); }}>+</button>
+      <button type="button" onClick={e => { e.stopPropagation(); setZoom(z => Math.max(12, z - 1)); }}>−</button>
+    </div>
+    <div className="map-layer">Mapa satelital</div>
+    <div className="map-attribution">© Esri, Maxar, Earthstar Geographics</div>
   </div>;
 }
 function openMap(lat, lon) {
@@ -164,6 +169,9 @@ function PageFooter() {
 const PLUS_ALPHABET = '23456789CFGHJMPQRVWX';
 const PLUS_RESOLUTIONS = [20, 1, 0.05, 0.0025, 0.000125];
 
+const PLUS_ALPHABET = '23456789CFGHJMPQRVWX';
+const PLUS_RESOLUTIONS = [20, 1, 0.05, 0.0025, 0.000125];
+
 function encodePlusCode(lat, lon) {
   let la = Number(lat);
   let lo = Number(lon);
@@ -183,14 +191,14 @@ function encodePlusCode(lat, lon) {
 }
 
 function decodePlusCode(fullCode) {
-  const raw = String(fullCode || '').toUpperCase().replace(/\\s/g, '');
+  const raw = String(fullCode || '').trim().toUpperCase().replace(/\\s/g, '');
   const plus = raw.indexOf('+');
   if (plus < 0) return null;
   const code = raw.replace('+', '');
   if (code.length < 8) return null;
   const digits = code.slice(0, 10);
   let lat = -90, lon = -180;
-  for (let i = 0; i < 10 && i < digits.length; i += 2) {
+  for (let i = 0; i < 10; i += 2) {
     const a = PLUS_ALPHABET.indexOf(digits[i]);
     const b = PLUS_ALPHABET.indexOf(digits[i + 1]);
     if (a < 0 || b < 0) return null;
@@ -202,37 +210,71 @@ function decodePlusCode(fullCode) {
   return { latitud: (lat + r / 2).toFixed(6), longitud: (lon + r / 2).toFixed(6) };
 }
 
+async function geocodeLocality(ref) {
+  const query = String(ref || '').trim();
+  if (!query) return null;
+  const providers = [
+    'https://photon.komoot.io/api/?limit=1&q=' + encodeURIComponent(query + ', Paraguay'),
+    'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=py&q=' + encodeURIComponent(query)
+  ];
+  for (const url of providers) {
+    try {
+      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!response.ok) continue;
+      const data = await response.json();
+      const item = Array.isArray(data) ? data[0] : data?.features?.[0];
+      const lat = Number(item?.lat ?? item?.geometry?.coordinates?.[1]);
+      const lon = Number(item?.lon ?? item?.geometry?.coordinates?.[0]);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+    } catch {}
+  }
+  return null;
+}
+
 async function convertirPlusCode(codigo, referencia = '') {
   const raw = String(codigo || '').trim().toUpperCase().replace(/\\s/g, '');
   const plus = raw.indexOf('+');
-  if (plus < 0) return null;
-
-  // Full Plus Code: decode directly.
+  if (plus < 0) return { error: 'El Plus Code debe contener el signo +.' };
   const before = raw.slice(0, plus);
-  if (before.length >= 8) return decodePlusCode(raw);
-
-  // Short Plus Code (e.g. 86Q8+PF): use the locality/reference as recovery area.
-  if (before.length < 4) return null;
-  const ref = String(referencia || '').trim();
-  if (!ref) return null;
-
-  try {
-    const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=py&q=' + encodeURIComponent(ref);
-    const response = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!Array.isArray(data) || !data[0]) return null;
-
-    const refLat = Number(data[0].lat);
-    const refLon = Number(data[0].lon);
-    const refFull = encodePlusCode(refLat, refLon);
-    if (!refFull) return null;
-
-    const recovered = refFull.slice(0, 8 - before.length) + before + raw.slice(plus + 1);
-    return decodePlusCode(recovered);
-  } catch {
-    return null;
+  if (before.length >= 8) {
+    const result = decodePlusCode(raw);
+    return result || { error: 'El Plus Code completo no es válido.' };
   }
+  if (before.length < 4) return { error: 'El Plus Code corto no es válido.' };
+
+  const ref = String(referencia || '').trim();
+  if (!ref) return { error: 'Complete la Referencia de localidad.' };
+
+  const location = await geocodeLocality(ref);
+  if (!location) {
+    return { error: 'No se pudo localizar la referencia de localidad. Verifique que incluya localidad, distrito y departamento.' };
+  }
+
+  // Recover the missing leading characters of the short code around the
+  // geocoded reference area. Try the nearest possible prefixes and select
+  // the decoded cell closest to the reference point.
+  const missing = 8 - before.length;
+  const refCode = encodePlusCode(location.lat, location.lon);
+  if (!refCode) return { error: 'No se pudo obtener la coordenada de referencia.' };
+  const suffix = raw.slice(plus + 1);
+  let best = null;
+  const alphabet = PLUS_ALPHABET;
+  const total = alphabet.length ** missing;
+  for (let n = 0; n < total; n++) {
+    let x = n, prefix = '';
+    for (let j = 0; j < missing; j++) {
+      prefix = alphabet[x % alphabet.length] + prefix;
+      x = Math.floor(x / alphabet.length);
+    }
+    const candidate = prefix + before + '+' + suffix;
+    const decoded = decodePlusCode(candidate);
+    if (!decoded) continue;
+    const dLat = Number(decoded.latitud) - location.lat;
+    const dLon = Number(decoded.longitud) - location.lon;
+    const dist = dLat * dLat + dLon * dLon;
+    if (!best || dist < best.dist) best = { dist, result: decoded };
+  }
+  return best?.result || { error: 'No se pudo recuperar el Plus Code corto.' };
 }
 
 export default function App() {
@@ -311,7 +353,7 @@ export default function App() {
                     <div className="location-gps-head"><b>UBICACIÓN GPS / LOCALIDAD</b><button className="gps-current" onClick={() => obtenerUbicacion(i)}>Obtener ubicación actual</button></div>
                     <div className="location-gps-grid">
                       <Field label="Plus Code compartido" value={row.plusCode} onChange={v => setRow('fincas', i, 'plusCode', v)} placeholder="Ej.: 86Q8+PF" />
-                      <div className="reference-plus-field"><Field label="Referencia de localidad" value={row.referencia} onChange={v => setRow('fincas', i, 'referencia', v)} placeholder="Ej.: 3 de Noviembre 2da Línea, Repatriación, Caaguazú" /><button type="button" className="plus-convert" onClick={async () => { const r=await convertirPlusCode(row.plusCode,row.referencia); if(r){setRow('fincas',i,'latitud',r.latitud);setRow('fincas',i,'longitud',r.longitud);} else { alert('No se pudo convertir el Plus Code. Para un código corto como 86Q8+PF, complete la referencia de localidad.'); } }}>Convertir Plus Code</button></div>
+                      <div className="reference-plus-field"><Field label="Referencia de localidad" value={row.referencia} onChange={v => setRow('fincas', i, 'referencia', v)} placeholder="Ej.: 3 de Noviembre 2da Línea, Repatriación, Caaguazú" /><button type="button" className="plus-convert" onClick={async () => { const r=await convertirPlusCode(row.plusCode,row.referencia); if(r?.latitud && r?.longitud){setRow('fincas',i,'latitud',r.latitud);setRow('fincas',i,'longitud',r.longitud);setRow('fincas',i,'mapRefresh',Date.now());} else { alert(r?.error || 'No se pudo convertir el Plus Code.'); } }}>Convertir Plus Code</button></div>
                     </div>
                     <div className="gps-row-secondary">
                       <Field label="Latitud" value={row.latitud} onChange={v => setRow('fincas', i, 'latitud', v)} />
