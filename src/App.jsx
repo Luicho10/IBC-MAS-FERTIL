@@ -38,35 +38,58 @@ function tileXY(lat, lon, zoom) {
 }
 function SatelliteMap({ lat, lon, area, onAreaChange }) {
   const [zoom, setZoom] = useState(15);
-  const la = Number(lat), lo = Number(lon), size = 256;
+  const la = Number(lat), lo = Number(lon);
   const valid = Number.isFinite(la) && Number.isFinite(lo);
-  const center = valid ? tileXY(la, lo, zoom) : { x: 0, y: 0 };
-  const baseX = Math.floor(center.x), baseY = Math.floor(center.y), n = 2 ** zoom;
-  const tiles = [];
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-    const x = baseX + dx, y = baseY + dy, wx = ((x % n) + n) % n;
-    if (y >= 0 && y < n) tiles.push({ x: wx, y, left: (dx + 1) * size, top: (dy + 1) * size, key: x + '-' + y });
-  }
-  const markerLeft = valid ? size + (center.x - baseX) * size : size;
-  const markerTop = valid ? size + (center.y - baseY) * size : size;
+  const mapWidth = 1000;
+  const mapHeight = 300;
+  const latSpan = 0.035 / (2 ** (zoom - 15));
+  const lonSpan = 0.055 / (2 ** (zoom - 15));
+  const minLat = valid ? la - latSpan / 2 : 0;
+  const maxLat = valid ? la + latSpan / 2 : 0;
+  const minLon = valid ? lo - lonSpan / 2 : 0;
+  const maxLon = valid ? lo + lonSpan / 2 : 0;
+
   const points = Array.isArray(area?.points) ? area.points : [];
+  const toPixel = p => ({
+    x: ((Number(p.lon) - minLon) / (maxLon - minLon)) * mapWidth,
+    y: ((maxLat - Number(p.lat)) / (maxLat - minLat)) * mapHeight
+  });
+  const marker = valid ? toPixel({ lat: la, lon: lo }) : { x: mapWidth / 2, y: mapHeight / 2 };
   const polygon = points.map(p => {
-    const t = tileXY(Number(p.lat), Number(p.lon), zoom);
-    return (size + (t.x - baseX) * size) + ',' + (size + (t.y - baseY) * size);
+    const q = toPixel(p);
+    return `${q.x},${q.y}`;
   }).join(' ');
+
   const addPoint = e => {
     if (!area?.drawing || !valid || e.target.closest('button')) return;
     const r = e.currentTarget.getBoundingClientRect();
-    const px = e.clientX - r.left, py = e.clientY - r.top;
-    const worldX = baseX + (px - size) / size, worldY = baseY + (py - size) / size;
-    const lon2 = worldX / n * 360 - 180;
-    const lat2 = (180 / Math.PI) * Math.atan(Math.sinh(Math.PI * (1 - 2 * worldY / n)));
-    onArea({ ...area, points: [...points, { lat: lat2.toFixed(6), lon: lon2.toFixed(6) }] });
+    const px = Math.max(0, Math.min(mapWidth, e.clientX - r.left));
+    const py = Math.max(0, Math.min(mapHeight, e.clientY - r.top));
+    const lat2 = maxLat - (py / mapHeight) * (maxLat - minLat);
+    const lon2 = minLon + (px / mapWidth) * (maxLon - minLon);
+    onArea({
+      ...(area || {}),
+      points: [...points, { lat: lat2.toFixed(6), lon: lon2.toFixed(6) }]
+    });
   };
+
+  const imageUrl = valid
+    ? `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${minLon},${minLat},${maxLon},${maxLat}&bboxSR=4326&imageSR=4326&size=${mapWidth},${mapHeight}&format=jpg&f=image&transparent=false`
+    : '';
+
   return <div className="satellite-map-container" onClick={addPoint}>
-    {valid ? tiles.map(t => <img key={t.key} className="satellite-tile" src={`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`} style={{ left: t.left, top: t.top }} alt="" />) : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
-    {valid && <div className="map-marker" style={{ left: markerLeft, top: markerTop }} />}
-    {valid && points.length > 1 && <svg className="map-overlay" viewBox="0 0 768 768" preserveAspectRatio="none"><polygon points={polygon} /></svg>}
+    {valid
+      ? <img className="satellite-base-image" src={imageUrl} alt="Vista satelital de la ubicación" />
+      : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
+
+    {valid && <div className="map-marker" style={{ left: marker.x, top: marker.y }} />}
+
+    {valid && points.length > 1 && (
+      <svg className="map-overlay" viewBox={`0 0 ${mapWidth} ${mapHeight}`} preserveAspectRatio="none">
+        <polygon points={polygon} />
+      </svg>
+    )}
+
     <div className="map-zoom">
       <button type="button" onClick={e => { e.stopPropagation(); setZoom(z => Math.min(19, z + 1)); }}>+</button>
       <button type="button" onClick={e => { e.stopPropagation(); setZoom(z => Math.max(10, z - 1)); }}>−</button>
