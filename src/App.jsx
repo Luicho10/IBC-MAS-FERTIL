@@ -188,7 +188,7 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
       }).setView([initialLat, initialLon], initialZoom);
 
       L.tileLayer(
-        'https://wi.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
           minZoom: 1,
           maxZoom: 19,
