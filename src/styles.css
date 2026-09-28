@@ -174,3 +174,6 @@ footer{font-size:8px;text-align:left;margin:16px 0 0;color:#555}.screen-navigati
 .plus-code-field{display:block}
 .satellite-map-container{background:#dfe9e2!important}
 .satellite-canvas{width:1280px!important;height:768px!important}
+
+.satellite-map-container{height:300px!important;position:relative!important;overflow:hidden!important;background:#dfe9e2!important}
+.satellite-static-image{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;display:block!important}
