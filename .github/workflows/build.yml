@@ -1,8 +1,6 @@
 name: Verificar IBC MAS FERTIL
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
