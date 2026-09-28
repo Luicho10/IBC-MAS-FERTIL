@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const finca = () => ({ ubicacion: '', finca: '', superficie: '', tenencia: '', valor: '', gravamen: '' });
+const finca = () => ({ nombre: '', tenencia: '', departamento: '', distrito: '', cultivo: '', observaciones: '', plusCode: '', referencia: '', latitud: '', longitud: '', finca: '', superficie: '', valor: '', gravamen: '', area: '', perimetro: '' });
 const bien = () => ({ tipo: '', marca: '', anio: '', valor: '', deuda: '' });
 const ganado = () => ({ especie: '', cantidad: '', unitario: '', total: '', gravamen: '' });
 const cultivoBase = ['SOJA', 'MAIZ', 'TRIGO', 'CHIA', 'GIRASOL', 'SESAMO', 'MANI', 'CAÑA', 'PASTURA'];
@@ -29,7 +29,7 @@ function Section({ number, title, children }) {
   return <section className="section"><h2>{number}. {title}</h2>{children}</section>;
 }
 
-function Table({ heads, children, className = '' }) {
+function mapUrl(lat, lon) { const la = Number(lat), lo = Number(lon); if (!Number.isFinite(la) || !Number.isFinite(lo)) return ''; const d = 0.006; return `https://www.openstreetmap.org/export/embed.html?bbox=${lo-d}%2C${la-d}%2C${lo+d}%2C${la+d}&layer=mapnik&marker=${la}%2C${lo}`; }\nfunction openMap(lat, lon) { if (lat && lon) window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`, '_blank'); }\nfunction LocationMap({ lat, lon }) { const src = mapUrl(lat, lon); return src ? <iframe className="location-map" title="Verificación de ubicación" src={src} loading="lazy" /> : <div className="location-map-empty">Ingrese latitud y longitud para visualizar la ubicación.</div>; }\n\nfunction Table({ heads, children, className = '' }) {
   return <div className={`table-wrap ${className}`}><table><thead><tr>{heads.map(head => <th key={head}>{head}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
 }
 
@@ -54,7 +54,7 @@ export default function App() {
 
   const set = (key, value) => setD(prev => ({ ...prev, [key]: value }));
   const setRow = (collection, index, field, value) => setD(prev => ({ ...prev, [collection]: prev[collection].map((row, i) => i === index ? { ...row, [field]: value } : row) }));
-  const addRow = (collection, factory) => setD(prev => ({ ...prev, [collection]: [...prev[collection], factory()] }));
+  const addRow = (collection, factory) => setD(prev => ({ ...prev, [collection]: [...prev[collection], factory()] }));\n  const obtenerUbicacion = (index) => { if (!navigator.geolocation) return; navigator.geolocation.getCurrentPosition(pos => { setD(prev => ({ ...prev, fincas: prev.fincas.map((row, i) => i === index ? { ...row, latitud: pos.coords.latitude.toFixed(6), longitud: pos.coords.longitude.toFixed(6) } : row) })); }, () => {}); };
   const removeRow = (collection, index) => setD(prev => ({ ...prev, [collection]: prev[collection].filter((_, i) => i !== index) }));
   const nuevo = () => { setD(nuevoEstado()); setPage(1); };
 
@@ -104,9 +104,43 @@ export default function App() {
               <div className="grid two client-fields"><Field label="NOMBRE / RAZÓN SOCIAL" value={d.nombre} onChange={v => set('nombre', v)} /><Field label="C.I. / RUC" value={d.ci} onChange={v => set('ci', v)} /><Field label="TELÉFONO" value={d.telefono} onChange={v => set('telefono', v)} /><Field label="DOMICILIO / CIUDAD" value={d.domicilio} onChange={v => set('domicilio', v)} /><Field label="E-MAIL" value={d.email} onChange={v => set('email', v)} className="full" /></div>
             </Section>
             <Section number="2" title="PERFIL DE ACTIVIDAD Y SUPERFICIE">
-              <div className="label-line">ACTIVIDAD:</div><Checks items={['Agrícola', 'Ganadera', 'Comercial/Revendedor', 'Servicios']} value={d.actividad} onChange={v => set('actividad', v)} />
-              <Table heads={['Ubicación GPS/Localidad', 'Finca / Padrón / Cta. Cte./Lote/Manzana', 'Superficie ha.', 'Tenencia (Propia/Arrendada)', 'Valor estimado Gs/Usd', 'Hipoteca / Gravamen (SI/NO)']} className="surface-table">{d.fincas.map((row, i) => <EditableRow key={i} data={row} index={i} collection="fincas" fields={['ubicacion', 'finca', 'superficie', 'tenencia', 'valor', 'gravamen']} setData={setRow} />)}</Table>
-              <div className="no-print table-actions"><button className="link" onClick={() => addRow('fincas', finca)}>+ Agregar ubicación</button>{d.fincas.length > 1 && <button className="link danger" onClick={() => removeRow('fincas', d.fincas.length - 1)}>- Quitar última</button>}</div>
+              <div className="label-line">ACTIVIDAD:</div>
+              <Checks items={['Agrícola', 'Ganadera', 'Comercial/Revendedor', 'Servicios']} value={d.actividad} onChange={v => set('actividad', v)} />
+              <div className="locations-screen">
+                <div className="locations-head"><div><b>UBICACIONES PRODUCTIVAS ({d.fincas.length})</b><small>Registrar cada finca o unidad productiva con sus datos y georreferenciación.</small></div><button className="location-add" onClick={() => addRow('fincas', finca)}>+ Agregar finca / ubicación</button></div>
+                {d.fincas.map((row, i) => <div className="location-card" key={i}>
+                  <div className="location-card-title"><b>FINCA / UNIDAD PRODUCTIVA {i + 1}</b>{d.fincas.length > 1 && <button className="remove-location" onClick={() => removeRow('fincas', i)}>×</button>}</div>
+                  <div className="location-grid">
+                    <Field label="Nombre / Identificación" value={row.nombre} onChange={v => setRow('fincas', i, 'nombre', v)} placeholder="Ej.: Finca San José" />
+                    <label className="field"><span>Tenencia</span><select value={row.tenencia || ''} onChange={e => setRow('fincas', i, 'tenencia', e.target.value)}><option value="">Seleccionar</option><option>Propia</option><option>Arrendada</option><option>Comodato</option><option>Otra</option></select></label>
+                    <Field label="Departamento" value={row.departamento} onChange={v => setRow('fincas', i, 'departamento', v)} />
+                    <Field label="Distrito" value={row.distrito} onChange={v => setRow('fincas', i, 'distrito', v)} />
+                    <Field label="Cultivo / actividad principal" value={row.cultivo} onChange={v => setRow('fincas', i, 'cultivo', v)} />
+                    <Field label="Finca / Padrón / Cta. Cte. / Lote / Manzana" value={row.finca} onChange={v => setRow('fincas', i, 'finca', v)} className="full" />
+                  </div>
+                  <div className="location-gps">
+                    <div className="location-gps-head"><b>UBICACIÓN GPS / LOCALIDAD</b><button className="gps-current" onClick={() => obtenerUbicacion(i)}>Obtener ubicación actual</button></div>
+                    <div className="location-gps-grid">
+                      <Field label="Plus Code compartido" value={row.plusCode} onChange={v => setRow('fincas', i, 'plusCode', v)} placeholder="Ej.: 86Q8+PF" />
+                      <Field label="Referencia de localidad" value={row.referencia} onChange={v => setRow('fincas', i, 'referencia', v)} placeholder="Localidad + distrito + departamento" />
+                      <Field label="Latitud" value={row.latitud} onChange={v => setRow('fincas', i, 'latitud', v)} />
+                      <Field label="Longitud" value={row.longitud} onChange={v => setRow('fincas', i, 'longitud', v)} />
+                    </div>
+                    <div className="gps-actions"><button className="gps-search" onClick={() => openMap(row.latitud, row.longitud)}>Abrir en mapa</button><span>Puede ingresar las coordenadas compartidas por el cliente o utilizar el GPS del dispositivo.</span></div>
+                    <div className="map-title"><b>VERIFICACIÓN DE UBICACIÓN</b><small>La posición se visualiza automáticamente con las coordenadas cargadas.</small></div>
+                    <LocationMap lat={row.latitud} lon={row.longitud} />
+                  </div>
+                  <div className="location-bottom-grid">
+                    <Field label="Superficie ha." value={row.superficie} onChange={v => setRow('fincas', i, 'superficie', v)} />
+                    <Field label="Valor estimado Gs/Usd" value={row.valor} onChange={v => setRow('fincas', i, 'valor', v)} />
+                    <label className="field"><span>Hipoteca / Gravamen</span><select value={row.gravamen || ''} onChange={e => setRow('fincas', i, 'gravamen', e.target.value)}><option value="">Seleccionar</option><option>NO</option><option>SI</option></select></label>
+                    <Field label="Área delimitada" value={row.area} onChange={v => setRow('fincas', i, 'area', v)} placeholder="Opcional" />
+                    <Field label="Perímetro" value={row.perimetro} onChange={v => setRow('fincas', i, 'perimetro', v)} placeholder="Opcional" />
+                    <Field label="Observaciones" value={row.observaciones} onChange={v => setRow('fincas', i, 'observaciones', v)} className="full" />
+                  </div>
+                </div>)}
+              </div>
+              <div className="locations-print"><Table heads={['Ubicación GPS / Localidad', 'Finca / Padrón / Cta. Cte. / Lote / Manzana', 'Superficie ha.', 'Tenencia', 'Valor estimado Gs/Usd', 'Hipoteca / Gravamen']}>{d.fincas.map((row, i) => <tr key={i}><td>{row.referencia || row.nombre || (row.latitud + ' / ' + row.longitud)}</td><td>{row.finca}</td><td>{row.superficie}</td><td>{row.tenencia}</td><td>{row.valor}</td><td>{row.gravamen}</td></tr>)}</Table></div>
             </Section>
             <Section number="2.1" title="MÓDULO COMERCIAL Y DE SERVICIOS"><div className="label-line">REVENTA:</div><Checks items={['Agroquímicos', 'Fertilizantes', 'Semillas']} value={d.reventa} onChange={v => set('reventa', v)} /><div className="label-line">SERVICIOS:</div><Checks items={['Consultoría', 'Maquinaria Pesada', 'Logística', 'Asistencia Técnica', 'Acopio Silo']} value={d.servicios} onChange={v => set('servicios', v)} /></Section>
             <Section number="3" title="PLAN DE PRODUCCIÓN"><Table heads={['CULTIVO', 'Has. ANT.', 'Rnd. Kg', 'Has. Actual', 'TN Estimada']} className="production-table">{d.prod.map((row, i) => <tr key={row.cultivo}><td><b>{row.cultivo}</b></td>{['ant', 'rnd', 'actual', 'tn'].map(field => <td key={field}><input value={row[field]} onChange={e => setRow('prod', i, field, e.target.value)} /></td>)}</tr>)}</Table></Section><PageFooter />
