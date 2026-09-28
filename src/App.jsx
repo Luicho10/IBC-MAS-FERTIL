@@ -79,17 +79,65 @@ function openMap(lat, lon) {
   if (lat && lon) window.open(`https://www.google.com/maps/@${lat},${lon},16z/data=!3m1!1e3`, '_blank');
 }
 function LocationMap({ row, onAreaChange }) {
-  const points = row.areaData?.points || [];
+  const initial = row.areaData || { drawing: false, closed: false, points: [] };
+  const [drawing, setDrawing] = useState(Boolean(initial.drawing));
+  const [closed, setClosed] = useState(Boolean(initial.closed));
+  const [points, setPoints] = useState(Array.isArray(initial.points) ? initial.points : []);
+
+  const saveArea = (nextDrawing, nextClosed, nextPoints) => {
+    setDrawing(nextDrawing);
+    setClosed(nextClosed);
+    setPoints(nextPoints);
+    onAreaChange({ drawing: nextDrawing, closed: nextClosed, points: nextPoints });
+  };
+
+  const startDrawing = () => {
+    saveArea(true, false, points);
+  };
+
+  const closeDrawing = () => {
+    if (points.length < 3) {
+      saveArea(false, true, points);
+      return;
+    }
+    saveArea(false, true, points);
+  };
+
+  const clearDrawing = () => {
+    saveArea(false, false, []);
+  };
+
+  const handleMapArea = next => {
+    if (!drawing || closed) return;
+    const nextPoints = Array.isArray(next?.points) ? next.points : points;
+    setPoints(nextPoints);
+    onAreaChange({ drawing: true, closed: false, points: nextPoints });
+  };
+
   return <div className="map-verification">
     <div className="map-title">
-      <div><b>VERIFICACIÓN DE UBICACIÓN</b><small>Haga clic sobre el mapa para marcar manualmente la ubicación.</small></div>
+      <div>
+        <b>VERIFICACIÓN DE UBICACIÓN</b>
+        <small>Haga clic sobre el mapa para marcar manualmente la ubicación.</small>
+      </div>
       <button type="button" className="map-satellite-pill">Mapa satelital</button>
     </div>
-    <SatelliteMap lat={row.latitud} lon={row.longitud} area={row.areaData} onAreaChange={onAreaChange} />
+
+    <SatelliteMap
+      lat={row.latitud}
+      lon={row.longitud}
+      area={{ drawing, closed, points }}
+      onAreaChange={handleMapArea}
+    />
+
+    <div className="map-status">
+      {drawing ? 'Modo delimitación activo: haga clic sobre el mapa para agregar puntos.' : closed ? 'Área cerrada. Puede borrar el área y volver a delimitar.' : 'Seleccione “Delimitar área” para comenzar.'}
+    </div>
+
     <div className="map-actions">
-      <button type="button" className="area-btn" onClick={() => onAreaChange({ ...(row.areaData || {}), drawing: true, points })}>▱ Delimitar área</button>
-      <button type="button" className="area-btn secondary" onClick={() => onAreaChange({ ...(row.areaData || {}), drawing: false })}>Cerrar área</button>
-      <button type="button" className="area-delete" onClick={() => onAreaChange({ drawing: false, points: [] })}>Borrar área</button>
+      <button type="button" className={`area-btn ${drawing ? 'active' : ''}`} onClick={startDrawing}>▱ Delimitar área</button>
+      <button type="button" className="area-btn secondary" onClick={closeDrawing}>Cerrar área</button>
+      <button type="button" className="area-delete" onClick={clearDrawing}>Borrar área</button>
     </div>
   </div>;
 }
