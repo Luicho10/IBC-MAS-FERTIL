@@ -9,7 +9,7 @@ const filas = (factory, cantidad) => Array.from({ length: cantidad }, factory);
 
 const nuevoEstado = () => ({
   fecha: '', tipo: 'Persona Física', nombre: '', ci: '', telefono: '', domicilio: '', email: '',
-  actividad: [], fincas: filas(finca, 4), reventa: [], servicios: [],
+  actividad: [], fincas: [finca()], reventa: [], servicios: [],
   prod: cultivoBase.map(c => ({ cultivo: c, ant: '', rnd: '', actual: '', tn: '' })),
   siembra: '', inicio: '', fin: '', bienes: filas(bien, 9), ganado: filas(ganado, 5),
   refs: referenciaBase.map(tipo => ({ tipo, entidad: '', contacto: '', telefono: '' })),
@@ -38,64 +38,39 @@ function tileXY(lat, lon, zoom) {
 }
 function SatelliteMap({ lat, lon, area, onAreaChange }) {
   const [zoom, setZoom] = useState(15);
-  const la = Number(lat), lo = Number(lon);
+  const la = Number(lat), lo = Number(lon), tileSize = 256;
   const valid = Number.isFinite(la) && Number.isFinite(lo);
-  const mapWidth = 1000;
-  const mapHeight = 300;
-  const latSpan = 0.035 / (2 ** (zoom - 15));
-  const lonSpan = 0.055 / (2 ** (zoom - 15));
-  const minLat = valid ? la - latSpan / 2 : 0;
-  const maxLat = valid ? la + latSpan / 2 : 0;
-  const minLon = valid ? lo - lonSpan / 2 : 0;
-  const maxLon = valid ? lo + lonSpan / 2 : 0;
-
+  const n = 2 ** zoom;
+  const center = valid ? tileXY(la, lo, zoom) : { x: 0, y: 0 };
+  const baseX = Math.floor(center.x), baseY = Math.floor(center.y);
   const points = Array.isArray(area?.points) ? area.points : [];
-  const toPixel = p => ({
-    x: ((Number(p.lon) - minLon) / (maxLon - minLon)) * mapWidth,
-    y: ((maxLat - Number(p.lat)) / (maxLat - minLat)) * mapHeight
-  });
-  const marker = valid ? toPixel({ lat: la, lon: lo }) : { x: mapWidth / 2, y: mapHeight / 2 };
-  const polygon = points.map(p => {
-    const q = toPixel(p);
-    return `${q.x},${q.y}`;
-  }).join(' ');
-
-  const addPoint = e => {
-    if (!area?.drawing || !valid || e.target.closest('button')) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const px = Math.max(0, Math.min(mapWidth, e.clientX - r.left));
-    const py = Math.max(0, Math.min(mapHeight, e.clientY - r.top));
-    const lat2 = maxLat - (py / mapHeight) * (maxLat - minLat);
-    const lon2 = minLon + (px / mapWidth) * (maxLon - minLon);
-    onArea({
-      ...(area || {}),
-      points: [...points, { lat: lat2.toFixed(6), lon: lon2.toFixed(6) }]
-    });
+  const mapW = 1280, mapH = 768;
+  const tileData = [];
+  for (let dy=-1; dy<=1; dy++) for (let dx=-2; dx<=2; dx++) {
+    const tx=baseX+dx, ty=baseY+dy;
+    if(ty>=0 && ty<n) tileData.push({x:((tx%n)+n)%n,y:ty,left:(dx+2)*tileSize,top:(dy+1)*tileSize,key:tx+'-'+ty});
+  }
+  const markerX = valid ? 512 + (center.x-baseX)*tileSize : 640;
+  const markerY = valid ? 256 + (center.y-baseY)*tileSize : 384;
+  const worldToPixel = p => {
+    const t=tileXY(Number(p.lat),Number(p.lon),zoom);
+    return {x:512+(t.x-baseX)*tileSize,y:256+(t.y-baseY)*tileSize};
   };
-
-  const imageUrl = valid
-    ? `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${minLon},${minLat},${maxLon},${maxLat}&bboxSR=4326&imageSR=4326&size=${mapWidth},${mapHeight}&format=jpg&f=image&transparent=false`
-    : '';
-
+  const polygon=points.map(p=>{const q=worldToPixel(p);return q.x+','+q.y}).join(' ');
+  const addPoint=e=>{
+    if(!area?.drawing||!valid||e.target.closest('button')) return;
+    const r=e.currentTarget.getBoundingClientRect();
+    const px=(e.clientX-r.left)*(mapW/r.width), py=(e.clientY-r.top)*(mapH/r.height);
+    const wx=baseX+(px-512)/tileSize, wy=baseY+(py-256)/tileSize;
+    const lon2=wx/n*360-180, lat2=(180/Math.PI)*Math.atan(Math.sinh(Math.PI*(1-2*wy/n)));
+    onArea({...area,points:[...points,{lat:lat2.toFixed(6),lon:lon2.toFixed(6)}]});
+  };
   return <div className="satellite-map-container" onClick={addPoint}>
-    {valid
-      ? <img className="satellite-base-image" src={imageUrl} alt="Vista satelital de la ubicación" />
-      : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
-
-    {valid && <div className="map-marker" style={{ left: marker.x, top: marker.y }} />}
-
-    {valid && points.length > 1 && (
-      <svg className="map-overlay" viewBox={`0 0 ${mapWidth} ${mapHeight}`} preserveAspectRatio="none">
-        <polygon points={polygon} />
-      </svg>
-    )}
-
-    <div className="map-zoom">
-      <button type="button" onClick={e => { e.stopPropagation(); setZoom(z => Math.min(19, z + 1)); }}>+</button>
-      <button type="button" onClick={e => { e.stopPropagation(); setZoom(z => Math.max(10, z - 1)); }}>−</button>
-    </div>
-    <div className="map-layer">Mapa satelital</div>
-    <div className="map-attribution">© Esri, Maxar, Earthstar Geographics</div>
+    {valid ? <div className="satellite-canvas">{tileData.map(t=><img key={t.key} className="satellite-tile" src={`https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${t.y}/${t.x}`} style={{left:t.left,top:t.top}} alt="" />)}</div> : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
+    {valid && <div className="map-marker" style={{left:markerX,top:markerY}} />}
+    {valid && points.length>1 && <svg className="map-overlay" viewBox={`0 0 ${mapW} ${mapH}`} preserveAspectRatio="none"><polygon points={polygon}/></svg>}
+    <div className="map-zoom"><button type="button" onClick={e=>{e.stopPropagation();setZoom(z=>Math.min(19,z+1))}}>+</button><button type="button" onClick={e=>{e.stopPropagation();setZoom(z=>Math.max(10,z-1))}}>−</button></div>
+    <div className="map-layer">Mapa satelital</div><div className="map-attribution">© Esri, Maxar, Earthstar Geographics</div>
   </div>;
 }
 function openMap(lat, lon) {
@@ -184,7 +159,31 @@ function PageFooter() {
   return <footer>FORM. IBCTIM. V6 MFS SETIEMBRE 26</footer>;
 }
 
-export default function App() {
+export default function convertirPlusCode(codigo, referencia='') {
+  const raw=String(codigo||'').trim().toUpperCase().replace(/ /g,'');
+  const plus=raw.indexOf('+');
+  if(plus<0) return null;
+  const clean=raw.replace('+','');
+  const alphabet='23456789CFGHJMPQRVWX';
+  const pairRes=[20,1,0.05,0.0025,0.000125];
+  let code=clean;
+  if(code.length<8){
+    const ref=String(referencia||'').trim();
+    if(!ref) return null;
+    return null;
+  }
+  const sep=code.length;
+  const first=code.slice(0,8);
+  let lat=-90,lon=-180;
+  for(let i=0;i<10 && i<first.length;i+=2){
+    const a=alphabet.indexOf(first[i]),b=alphabet.indexOf(first[i+1]);
+    if(a<0||b<0) return null;
+    const r=pairRes[i/2]; lat+=a*r; lon+=b*r;
+  }
+  return {latitud:(lat+pairRes[Math.min(4,Math.floor(first.length/2)-1)]/2).toFixed(6),longitud:(lon+pairRes[Math.min(4,Math.floor(first.length/2)-1)]/2).toFixed(6)};
+}
+
+function App() {
   const [d, setD] = useState(nuevoEstado);
   const [page, setPage] = useState(1);
 
@@ -259,7 +258,7 @@ export default function App() {
                   <div className="location-gps">
                     <div className="location-gps-head"><b>UBICACIÓN GPS / LOCALIDAD</b><button className="gps-current" onClick={() => obtenerUbicacion(i)}>Obtener ubicación actual</button></div>
                     <div className="location-gps-grid">
-                      <Field label="Plus Code compartido" value={row.plusCode} onChange={v => setRow('fincas', i, 'plusCode', v)} placeholder="Ej.: 86Q8+PF" />
+                      <div className="plus-code-field"><Field label="Plus Code compartido" value={row.plusCode} onChange={v => setRow('fincas', i, 'plusCode', v)} placeholder="Ej.: 86Q8+PF" /><button type="button" className="plus-convert" onClick={() => { const r=convertirPlusCode(row.plusCode,row.referencia); if(r){setRow('fincas',i,'latitud',r.latitud);setRow('fincas',i,'longitud',r.longitud);} else { alert('Ingrese un Plus Code completo para convertirlo a coordenadas.'); } }}>Convertir Plus Code</button></div>
                       <Field label="Referencia de localidad" value={row.referencia} onChange={v => setRow('fincas', i, 'referencia', v)} placeholder="Ej.: 3 de Noviembre 2da Línea, Repatriación, Caaguazú" />
                     </div>
                     <div className="gps-row-secondary">
@@ -268,11 +267,6 @@ export default function App() {
                     </div>
                     <div className="gps-actions"><button className="gps-search" onClick={() => setRow('fincas', i, 'mapRefresh', Date.now())}>Buscar ubicación por coordenadas</button><span>Puede ingresar las coordenadas compartidas por el cliente o utilizar el GPS del dispositivo.</span></div>
                     <LocationMap row={row} onAreaChange={v=>setRow('fincas',i,'areaData',v)} />
-                  </div>
-                  <div className="location-bottom-grid">
-                    <Field label="Valor estimado Gs/Usd" value={row.valor} onChange={v=>setRow('fincas',i,'valor',v)}/>
-                    <label className="field"><span>Hipoteca / Gravamen</span><select value={row.gravamen||''} onChange={e=>setRow('fincas',i,'gravamen',e.target.value)}><option value="">Seleccionar</option><option>NO</option><option>SI</option></select></label>
-                    <Field label="Observaciones" value={row.observaciones} onChange={v=>setRow('fincas',i,'observaciones',v)} className="full"/>
                   </div>
                 </div>)}
               </div>
