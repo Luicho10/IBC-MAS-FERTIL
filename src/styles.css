@@ -151,3 +151,13 @@ footer{font-size:8px;text-align:left;margin:16px 0 0;color:#555}.screen-navigati
 .map-no-location{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#718096;font-size:10px}
 .satellite-map-wrap{position:relative}
 @media(max-width:900px){.location-model-grid{grid-template-columns:1fr 1fr}.location-model-grid .field:nth-child(n){grid-column:auto}.satellite-map-container{height:250px}}
+
+.location-model-grid{grid-template-columns:1.45fr 1fr 1fr 1.15fr!important;gap:2px 10px!important;padding:4px 10px 1px!important}
+.location-model-grid>div:nth-child(5){grid-column:1}.location-model-grid>div:nth-child(6){grid-column:2}
+.location-registry{padding:0 10px 3px!important}.location-registry .field{margin:2px 0!important}
+.location-gps{margin:0 10px 6px!important;padding:7px!important}
+.location-gps-grid{grid-template-columns:1fr 2fr!important}
+.gps-row-secondary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:1px}
+.gps-row-secondary .field{margin:3px 0}
+.satellite-map-container{height:300px!important}
+.map-actions{padding:6px 0 1px!important}
