@@ -159,7 +159,7 @@ function PageFooter() {
   return <footer>FORM. IBCTIM. V6 MFS SETIEMBRE 26</footer>;
 }
 
-export default function convertirPlusCode(codigo, referencia='') {
+function convertirPlusCode(codigo, referencia='') {
   const raw=String(codigo||'').trim().toUpperCase().replace(/ /g,'');
   const plus=raw.indexOf('+');
   if(plus<0) return null;
@@ -183,7 +183,7 @@ export default function convertirPlusCode(codigo, referencia='') {
   return {latitud:(lat+pairRes[Math.min(4,Math.floor(first.length/2)-1)]/2).toFixed(6),longitud:(lon+pairRes[Math.min(4,Math.floor(first.length/2)-1)]/2).toFixed(6)};
 }
 
-function App() {
+export default function App() {
   const [d, setD] = useState(nuevoEstado);
   const [page, setPage] = useState(1);
 
