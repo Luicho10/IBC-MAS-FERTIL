@@ -189,3 +189,23 @@ footer{font-size:8px;text-align:left;margin:16px 0 0;color:#555}.screen-navigati
 /* Evitar cualquier oscurecimiento de las teselas satelitales */
 .ibc-leaflet-map,.ibc-leaflet-map .leaflet-pane,.ibc-leaflet-map .leaflet-tile-pane,.ibc-leaflet-map .leaflet-layer,.ibc-leaflet-map .leaflet-tile-container{background:transparent!important;opacity:1!important;filter:none!important;mix-blend-mode:normal!important}
 .ibc-leaflet-map .leaflet-tile{opacity:1!important;filter:none!important;mix-blend-mode:normal!important;display:block!important;visibility:visible!important}
+
+
+/* Delimitación de área: resultados y ficha de impresión */
+.area-results{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:5px}
+.area-results label{display:block}
+.area-results label span{display:block;font-size:8px;font-weight:700;color:#17604b;margin-bottom:3px}
+.area-results label strong{display:block;height:30px;border:1px solid #b9d8ca;border-radius:5px;background:#eaf5ee;padding:6px 9px;color:#17355d;font-size:10px}
+.area-btn:disabled,.area-delete:disabled{opacity:.45;cursor:not-allowed}
+.print-location-detail{margin-top:8px;border:1px solid #c9ded4;border-radius:6px;padding:7px;background:#fff}
+.print-location-heading{font-size:10px;font-weight:800;color:#17604b;margin-bottom:5px}
+.print-location-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;font-size:8.5px;color:#17355d;margin-bottom:5px}
+.area-print-preview{border:1px solid #d6e5de;border-radius:5px;overflow:hidden;margin-top:5px}
+.area-print-title{font-size:8px;font-weight:800;color:#17604b;background:#e6f3eb;padding:4px 6px}
+.area-print-preview svg{display:block;width:100%;height:105px;background:#f7fbf9}
+.area-print-background{fill:#f7fbf9}
+.area-print-polygon{fill:#9ed8bd;fill-opacity:.42;stroke:#087a50;stroke-width:2}
+.area-print-point{fill:#087a50;stroke:#fff;stroke-width:1}
+.area-print-coordinates{font-size:7px;color:#64748b;padding:4px 6px;line-height:1.4}
+.print-observations{font-size:8.5px;color:#17355d;margin-top:5px;padding-top:5px;border-top:1px solid #e0ebe6}
+
