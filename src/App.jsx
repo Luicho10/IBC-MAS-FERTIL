@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+// IBC MAS FERTIL - aplicación principal
+
 const finca = () => ({ nombre: '', tenencia: '', departamento: '', distrito: '', cultivo: '', observaciones: '', plusCode: '', referencia: '', latitud: '', longitud: '', finca: '', superficie: '', valor: '', gravamen: '', area: '', perimetro: '', areaData: { drawing: false, points: [] } });
 const bien = () => ({ tipo: '', marca: '', anio: '', valor: '', deuda: '' });
 const ganado = () => ({ especie: '', cantidad: '', unitario: '', total: '', gravamen: '' });
