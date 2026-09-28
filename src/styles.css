@@ -179,8 +179,8 @@ footer{font-size:10px;text-align:left;margin:16px 0 0;color:#555}.screen-navigat
 .satellite-static-image{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;display:block!important}
 
 /* Mapa satelital IBC: misma tecnología visual del Registro de Garantías */
-.satellite-map-container{position:relative!important;width:100%!important;height:360px!important;overflow:hidden!important;border:1px solid #c9ded4!important;background:#dfe9e2!important}
-.ibc-leaflet-map{width:100%!important;height:100%!important;min-height:360px!important;z-index:1!important}
+.satellite-map-container{position:relative!important;width:100%!important;height:460px!important;overflow:hidden!important;border:1px solid #c9ded4!important;background:#dfe9e2!important}
+.ibc-leaflet-map{width:100%!important;height:100%!important;min-height:460px!important;z-index:1!important}
 .ibc-leaflet-map .leaflet-control-zoom{margin-left:8px!important;margin-top:8px!important}
 .ibc-leaflet-map .leaflet-control-attribution{font-size:7px!important}
 .map-leaflet-error{height:100%;display:flex;align-items:center;justify-content:center;background:#f7fbf9;color:#a33;font-size:10px;padding:15px;text-align:center}
