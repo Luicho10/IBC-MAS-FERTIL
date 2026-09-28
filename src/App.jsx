@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // IBC MAS FERTIL - aplicación principal
 
@@ -31,91 +31,155 @@ function Section({ number, title, children }) {
   return <section className="section"><h2>{number}. {title}</h2>{children}</section>;
 }
 
-function tileXY(lat, lon, zoom) {
-  const n = 2 ** zoom;
-  const x = ((lon + 180) / 360) * n;
-  const latRad = lat * Math.PI / 180;
-  const y = ((1 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2) * n;
-  return { x, y };
+const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+
+function cargarLeaflet() {
+  return new Promise((resolve, reject) => {
+    if (window.L) return resolve(window.L);
+    if (!document.querySelector('link[data-ibc-leaflet]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = LEAFLET_CSS;
+      link.dataset.ibcLeaflet = 'true';
+      document.head.appendChild(link);
+    }
+    const existente = document.querySelector('script[data-ibc-leaflet]');
+    if (existente) {
+      existente.addEventListener('load', () => resolve(window.L), { once: true });
+      existente.addEventListener('error', reject, { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = LEAFLET_JS;
+    script.async = true;
+    script.dataset.ibcLeaflet = 'true';
+    script.onload = () => resolve(window.L);
+    script.onerror = reject;
+    document.body.appendChild(script);
+  });
 }
-function pixelToLatLon(px, py, zoom) {
-  const n = 2 ** zoom;
-  const lon = (px / (256 * n)) * 360 - 180;
-  const merc = Math.PI * (1 - 2 * py / (256 * n));
-  const lat = 180 / Math.PI * Math.atan(Math.sinh(merc));
-  return { lat, lon };
-}
+
 function SatelliteMap({ lat, lon, area, onAreaChange }) {
-  const [zoom, setZoom] = useState(15);
-  const [tileHost, setTileHost] = useState('https://services.arcgisonline.com');
-  const la = Number(lat), lo = Number(lon);
-  const valid = Number.isFinite(la) && Number.isFinite(lo);
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const markerRef = useRef(null);
+  const polygonRef = useRef(null);
+  const pointMarkersRef = useRef([]);
+
+  const la = Number(String(lat ?? '').replace(',', '.'));
+  const lo = Number(String(lon ?? '').replace(',', '.'));
+  const valid = Number.isFinite(la) && Number.isFinite(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180;
   const points = Array.isArray(area?.points) ? area.points : [];
-  const mapW = 1200, mapH = 500;
-  const center = valid ? tileXY(la, lo, zoom) : { x: 0, y: 0 };
-  const centerPx = { x: center.x * 256, y: center.y * 256 };
-  const tiles = [];
-  if (valid) {
-    const minX = Math.floor((centerPx.x - mapW / 2) / 256) - 1;
-    const maxX = Math.floor((centerPx.x + mapW / 2) / 256) + 1;
-    const minY = Math.floor((centerPx.y - mapH / 2) / 256) - 1;
-    const maxY = Math.floor((centerPx.y + mapH / 2) / 256) + 1;
-    const n = 2 ** zoom;
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        const wrappedX = ((x % n) + n) % n;
-        if (y < 0 || y >= n) continue;
-        tiles.push({
-          key: x + ':' + y,
-          x: x * 256 - centerPx.x + mapW / 2,
-          y: y * 256 - centerPx.y + mapH / 2,
-          src: tileHost + '/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + zoom + '/' + y + '/' + wrappedX
+
+  useEffect(() => {
+    let cancelled = false;
+    cargarLeaflet().then(L => {
+      if (cancelled || !mapRef.current || mapInstance.current) return;
+
+      const initialLat = valid ? la : -23.4425;
+      const initialLon = valid ? lo : -58.4438;
+      const initialZoom = valid ? 17 : 6;
+
+      const map = L.map(mapRef.current, {
+        scrollWheelZoom: true,
+        zoomControl: true
+      }).setView([initialLat, initialLon], initialZoom);
+
+      L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          maxZoom: 19,
+          attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+        }
+      ).addTo(map);
+
+      mapInstance.current = map;
+
+      map.on('click', e => {
+        if (!area?.drawing || area?.closed) return;
+        const nextPoints = [
+          ...((Array.isArray(area?.points) ? area.points : [])),
+          { lat: Number(e.latlng.lat.toFixed(6)), lon: Number(e.latlng.lng.toFixed(6)) }
+        ];
+        onAreaChange({ ...(area || {}), drawing: true, closed: false, points: nextPoints });
+      });
+
+      setTimeout(() => map.invalidateSize(), 100);
+    }).catch(() => {
+      if (!cancelled && mapRef.current) {
+        mapRef.current.innerHTML = '<div class="map-leaflet-error">No se pudo cargar el mapa satelital. Verifique su conexión a Internet.</div>';
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapInstance.current;
+    const L = window.L;
+    if (!map || !L || !valid) return;
+
+    const nueva = [la, lo];
+    if (!markerRef.current) {
+      markerRef.current = L.marker(nueva, { draggable: true }).addTo(map);
+      markerRef.current.on('dragend', () => {
+        const p = markerRef.current.getLatLng();
+        const inputEvent = new CustomEvent('ibc-map-coordinate-change', {
+          detail: { latitud: p.lat.toFixed(6), longitud: p.lng.toFixed(6) }
         });
+        window.dispatchEvent(inputEvent);
+      });
+    } else {
+      markerRef.current.setLatLng(nueva);
+    }
+
+    markerRef.current.bindPopup(
+      'Ubicación registrada<br><strong>' + la.toFixed(6) + ', ' + lo.toFixed(6) + '</strong>'
+    );
+
+    map.setView(nueva, Math.max(map.getZoom(), 16), { animate: false });
+
+    pointMarkersRef.current.forEach(m => map.removeLayer(m));
+    pointMarkersRef.current = [];
+
+    if (polygonRef.current) {
+      map.removeLayer(polygonRef.current);
+      polygonRef.current = null;
+    }
+
+    if (points.length) {
+      pointMarkersRef.current = points.map(p =>
+        L.circleMarker([Number(p.lat), Number(p.lon)], {
+          radius: 4,
+          weight: 2,
+          fillOpacity: 0.9
+        }).addTo(map)
+      );
+
+      if (points.length >= 2) {
+        polygonRef.current = L.polygon(
+          points.map(p => [Number(p.lat), Number(p.lon)]),
+          { weight: 3, fillOpacity: 0.24 }
+        ).addTo(map);
       }
     }
-  }
 
-  const pointToPixel = p => {
-    const q = tileXY(Number(p.lat), Number(p.lon), zoom);
-    return { x: q.x * 256 - centerPx.x + mapW / 2, y: q.y * 256 - centerPx.y + mapH / 2 };
-  };
-  const marker = valid ? { x: mapW / 2, y: mapH / 2 } : { x: mapW / 2, y: mapH / 2 };
-  const polygon = points.map(pointToPixel).map(q => q.x + ',' + q.y).join(' ');
+    setTimeout(() => map.invalidateSize(), 50);
+  }, [lat, lon, points.length, area?.drawing, area?.closed]);
 
-  const addPoint = e => {
-    if (!area?.drawing || !valid || e.target.closest('button')) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - r.left) * (mapW / r.width);
-    const py = (e.clientY - r.top) * (mapH / r.height);
-    const worldX = centerPx.x + px - mapW / 2;
-    const worldY = centerPx.y + py - mapH / 2;
-    const next = pixelToLatLon(worldX, worldY, zoom);
-    onArea({ ...area, points: [...points, { lat: next.lat.toFixed(6), lon: next.lon.toFixed(6) }] });
-  };
-
-  const zoomMap = delta => {
-    const nextZoom = Math.max(12, Math.min(18, zoom + delta));
-    setZoom(nextZoom);
-  };
-
-  return <div className="satellite-map-container" onClick={addPoint}>
-    {valid ? <div className="satellite-tile-layer">
-      {tiles.map(t => <img key={t.key} src={t.src} alt="" className="satellite-tile" style={{ left: t.x, top: t.y }} onError={e => {
-        if (tileHost === 'https://services.arcgisonline.com') {
-          e.currentTarget.src = e.currentTarget.src.replace('https://services.arcgisonline.com', 'https://server.arcgisonline.com');
-          setTileHost('https://server.arcgisonline.com');
-        }
-      }} />)}
-    </div> : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
-    {valid && <div className="map-marker" style={{ left: marker.x, top: marker.y }} />}
-    {valid && points.length > 1 && <svg className="map-overlay" viewBox={`0 0 ${mapW} ${mapH}`} preserveAspectRatio="none"><polygon points={polygon}/></svg>}
-    <div className="map-zoom">
-      <button type="button" onClick={e => { e.stopPropagation(); zoomMap(1); }}>+</button>
-      <button type="button" onClick={e => { e.stopPropagation(); zoomMap(-1); }}>−</button>
+  return (
+    <div className="satellite-map-container">
+      <div ref={mapRef} className="ibc-leaflet-map" aria-label="Mapa satelital para verificar la ubicación" />
+      <div className="map-layer">Mapa satelital</div>
     </div>
-    <div className="map-layer">Mapa satelital</div>
-    <div className="map-attribution">© Esri, Maxar, Earthstar Geographics</div>
-  </div>;
+  );
 }
 function openMap(lat, lon) {
   if (lat && lon) window.open(`https://www.google.com/maps/@${lat},${lon},16z/data=!3m1!1e3`, '_blank');
