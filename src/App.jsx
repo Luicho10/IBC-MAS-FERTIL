@@ -38,24 +38,55 @@ function tileXY(lat, lon, zoom) {
   const y = ((1 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2) * n;
   return { x, y };
 }
+function tileXY(lat, lon, zoom) {
+  const n = 2 ** zoom;
+  const x = ((lon + 180) / 360) * n;
+  const latRad = lat * Math.PI / 180;
+  const y = ((1 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2) * n;
+  return { x, y };
+}
+function pixelToLatLon(px, py, zoom) {
+  const n = 2 ** zoom;
+  const lon = (px / (256 * n)) * 360 - 180;
+  const merc = Math.PI * (1 - 2 * py / (256 * n));
+  const lat = 180 / Math.PI * Math.atan(Math.sinh(merc));
+  return { lat, lon };
+}
 function SatelliteMap({ lat, lon, area, onAreaChange }) {
   const [zoom, setZoom] = useState(15);
+  const [tileHost, setTileHost] = useState('https://services.arcgisonline.com');
   const la = Number(lat), lo = Number(lon);
   const valid = Number.isFinite(la) && Number.isFinite(lo);
   const points = Array.isArray(area?.points) ? area.points : [];
   const mapW = 1200, mapH = 500;
-  const lonSpan = 0.055 * (15 / zoom);
-  const latSpan = 0.035 * (15 / zoom);
-  const bbox = valid ? [lo - lonSpan / 2, la - latSpan / 2, lo + lonSpan / 2, la + latSpan / 2].join(',') : '';
-  const imageUrl = valid
-    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=' + encodeURIComponent(bbox) + '&bboxSR=4326&imageSR=4326&size=1200,500&format=jpg&f=image'
-    : '';
+  const center = valid ? tileXY(la, lo, zoom) : { x: 0, y: 0 };
+  const centerPx = { x: center.x * 256, y: center.y * 256 };
+  const tiles = [];
+  if (valid) {
+    const minX = Math.floor((centerPx.x - mapW / 2) / 256) - 1;
+    const maxX = Math.floor((centerPx.x + mapW / 2) / 256) + 1;
+    const minY = Math.floor((centerPx.y - mapH / 2) / 256) - 1;
+    const maxY = Math.floor((centerPx.y + mapH / 2) / 256) + 1;
+    const n = 2 ** zoom;
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const wrappedX = ((x % n) + n) % n;
+        if (y < 0 || y >= n) continue;
+        tiles.push({
+          key: x + ':' + y,
+          x: x * 256 - centerPx.x + mapW / 2,
+          y: y * 256 - centerPx.y + mapH / 2,
+          src: tileHost + '/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + zoom + '/' + y + '/' + wrappedX
+        });
+      }
+    }
+  }
 
-  const pointToPixel = p => ({
-    x: ((Number(p.lon) - (lo - lonSpan / 2)) / lonSpan) * mapW,
-    y: ((la + latSpan / 2) - Number(p.lat)) / latSpan * mapH
-  });
-  const marker = valid ? pointToPixel({ lat: la, lon: lo }) : { x: mapW / 2, y: mapH / 2 };
+  const pointToPixel = p => {
+    const q = tileXY(Number(p.lat), Number(p.lon), zoom);
+    return { x: q.x * 256 - centerPx.x + mapW / 2, y: q.y * 256 - centerPx.y + mapH / 2 };
+  };
+  const marker = valid ? { x: mapW / 2, y: mapH / 2 } : { x: mapW / 2, y: mapH / 2 };
   const polygon = points.map(pointToPixel).map(q => q.x + ',' + q.y).join(' ');
 
   const addPoint = e => {
@@ -63,18 +94,31 @@ function SatelliteMap({ lat, lon, area, onAreaChange }) {
     const r = e.currentTarget.getBoundingClientRect();
     const px = (e.clientX - r.left) * (mapW / r.width);
     const py = (e.clientY - r.top) * (mapH / r.height);
-    const lat2 = (la + latSpan / 2) - (py / mapH) * latSpan;
-    const lon2 = (lo - lonSpan / 2) + (px / mapW) * lonSpan;
-    onArea({ ...area, points: [...points, { lat: lat2.toFixed(6), lon: lon2.toFixed(6) }] });
+    const worldX = centerPx.x + px - mapW / 2;
+    const worldY = centerPx.y + py - mapH / 2;
+    const next = pixelToLatLon(worldX, worldY, zoom);
+    onArea({ ...area, points: [...points, { lat: next.lat.toFixed(6), lon: next.lon.toFixed(6) }] });
+  };
+
+  const zoomMap = delta => {
+    const nextZoom = Math.max(12, Math.min(18, zoom + delta));
+    setZoom(nextZoom);
   };
 
   return <div className="satellite-map-container" onClick={addPoint}>
-    {valid ? <img className="satellite-static-image" src={imageUrl} alt="Vista satelital de la ubicación" /> : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
+    {valid ? <div className="satellite-tile-layer">
+      {tiles.map(t => <img key={t.key} src={t.src} alt="" className="satellite-tile" style={{ left: t.x, top: t.y }} onError={e => {
+        if (tileHost === 'https://services.arcgisonline.com') {
+          e.currentTarget.src = e.currentTarget.src.replace('https://services.arcgisonline.com', 'https://server.arcgisonline.com');
+          setTileHost('https://server.arcgisonline.com');
+        }
+      }} />)}
+    </div> : <div className="map-no-location">Cargue latitud y longitud para visualizar la finca.</div>}
     {valid && <div className="map-marker" style={{ left: marker.x, top: marker.y }} />}
     {valid && points.length > 1 && <svg className="map-overlay" viewBox={`0 0 ${mapW} ${mapH}`} preserveAspectRatio="none"><polygon points={polygon}/></svg>}
     <div className="map-zoom">
-      <button type="button" onClick={e => { e.stopPropagation(); setZoom(z => Math.min(18, z + 1)); }}>+</button>
-      <button type="button" onClick={e => { e.stopPropagation(); setZoom(z => Math.max(12, z - 1)); }}>−</button>
+      <button type="button" onClick={e => { e.stopPropagation(); zoomMap(1); }}>+</button>
+      <button type="button" onClick={e => { e.stopPropagation(); zoomMap(-1); }}>−</button>
     </div>
     <div className="map-layer">Mapa satelital</div>
     <div className="map-attribution">© Esri, Maxar, Earthstar Geographics</div>
