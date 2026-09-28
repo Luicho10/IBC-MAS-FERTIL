@@ -124,14 +124,21 @@ function AreaPrintPreview({ points = [] }) {
   const maxLat = Math.max(...validPoints.map(p => p.lat));
   const minLon = Math.min(...validPoints.map(p => p.lon));
   const maxLon = Math.max(...validPoints.map(p => p.lon));
-  const latPad = Math.max((maxLat - minLat) * 0.25, 0.002);
-  const lonPad = Math.max((maxLon - minLon) * 0.25, 0.002);
-  const south = minLat - latPad;
-  const north = maxLat + latPad;
-  const west = minLon - lonPad;
-  const east = maxLon + lonPad;
-  const spanLat = Math.max(north - south, 0.00001);
-  const spanLon = Math.max(east - west, 0.00001);
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLon = (minLon + maxLon) / 2;
+  const rawLatSpan = Math.max(maxLat - minLat, 0.00001);
+  const rawLonSpan = Math.max(maxLon - minLon, 0.00001);
+  // Mantener un contexto visual semejante al mapa de pantalla.
+  // La impresión muestra la misma parcela, pero no la recorta demasiado.
+  const targetAspect = 900 / 420;
+  let spanLat = rawLatSpan * 3.2;
+  let spanLon = rawLonSpan * 3.2;
+  if (spanLon / spanLat < targetAspect) spanLon = spanLat * targetAspect;
+  if (spanLon / spanLat > targetAspect) spanLat = spanLon / targetAspect;
+  const south = centerLat - spanLat / 2;
+  const north = centerLat + spanLat / 2;
+  const west = centerLon - spanLon / 2;
+  const east = centerLon + spanLon / 2;
   const width = 900;
   const height = 420;
   const imageUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${west},${south},${east},${north}&bboxSR=4326&imageSR=4326&size=${width},${height}&format=jpg&f=image&transparent=false`;
