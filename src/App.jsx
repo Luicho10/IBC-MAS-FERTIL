@@ -60,7 +60,7 @@ function cargarLeaflet() {
   });
 }
 
-function SatelliteMap({ lat, lon, area, onAreaChange }) {
+function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markerRef = useRef(null);
@@ -71,6 +71,12 @@ function SatelliteMap({ lat, lon, area, onAreaChange }) {
   const lo = Number(String(lon ?? '').replace(',', '.'));
   const valid = Number.isFinite(la) && Number.isFinite(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180;
   const points = Array.isArray(area?.points) ? area.points : [];
+  const areaRef = useRef(area);
+  const onAreaChangeRef = useRef(onAreaChange);
+  const onCoordinateChangeRef = useRef(onCoordinateChange);
+  areaRef.current = area;
+  onAreaChangeRef.current = onAreaChange;
+  onCoordinateChangeRef.current = onCoordinateChange;
 
   useEffect(() => {
     let cancelled = false;
@@ -97,12 +103,13 @@ function SatelliteMap({ lat, lon, area, onAreaChange }) {
       mapInstance.current = map;
 
       map.on('click', e => {
-        if (!area?.drawing || area?.closed) return;
+        const currentArea = areaRef.current || {};
+        if (!currentArea.drawing || currentArea.closed) return;
         const nextPoints = [
-          ...((Array.isArray(area?.points) ? area.points : [])),
+          ...((Array.isArray(currentArea.points) ? currentArea.points : [])),
           { lat: Number(e.latlng.lat.toFixed(6)), lon: Number(e.latlng.lng.toFixed(6)) }
         ];
-        onAreaChange({ ...(area || {}), drawing: true, closed: false, points: nextPoints });
+        onAreaChangeRef.current({ ...(currentArea || {}), drawing: true, closed: false, points: nextPoints });
       });
 
       setTimeout(() => map.invalidateSize(), 100);
@@ -134,7 +141,7 @@ function SatelliteMap({ lat, lon, area, onAreaChange }) {
         const inputEvent = new CustomEvent('ibc-map-coordinate-change', {
           detail: { latitud: p.lat.toFixed(6), longitud: p.lng.toFixed(6) }
         });
-        window.dispatchEvent(inputEvent);
+        if (onCoordinateChangeRef.current) onCoordinateChangeRef.current(inputEvent.detail);
       });
     } else {
       markerRef.current.setLatLng(nueva);
@@ -234,6 +241,10 @@ function LocationMap({ row, onAreaChange }) {
       lon={row.longitud}
       area={{ drawing, closed, points }}
       onAreaChange={handleMapArea}
+      onCoordinateChange={v => {
+        onAreaChange({ ...row.areaData, drawing: false, closed: row.areaData?.closed || false, points: row.areaData?.points || [] });
+        window.dispatchEvent(new CustomEvent('ibc-finca-coordinate-change', { detail: v }));
+      }}
     />
 
     <div className="map-status">
