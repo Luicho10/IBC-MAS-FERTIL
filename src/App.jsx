@@ -188,7 +188,7 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
       }).setView([initialLat, initialLon], initialZoom);
 
       L.tileLayer(
-        'https://wi.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
           maxZoom: 19,
           attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community'
@@ -199,12 +199,28 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
 
       map.on('click', e => {
         const currentArea = areaRef.current || {};
-        if (!currentArea.drawing || currentArea.closed) return;
-        const nextPoints = [
-          ...((Array.isArray(currentArea.points) ? currentArea.points : [])),
-          { lat: Number(e.latlng.lat.toFixed(6)), lon: Number(e.latlng.lng.toFixed(6)) }
-        ];
-        onAreaChangeRef.current({ ...(currentArea || {}), drawing: true, closed: false, points: nextPoints });
+        const clicked = {
+          latitud: e.latlng.lat.toFixed(6),
+          longitud: e.latlng.lng.toFixed(6)
+        };
+
+        if (currentArea.drawing && !currentArea.closed) {
+          const nextPoints = [
+            ...(Array.isArray(currentArea.points) ? currentArea.points : []),
+            { lat: Number(e.latlng.lat.toFixed(6)), lon: Number(e.latlng.lng.toFixed(6)) }
+          ];
+          onAreaChangeRef.current({
+            ...(currentArea || {}),
+            drawing: true,
+            closed: false,
+            points: nextPoints
+          });
+          return;
+        }
+
+        if (onCoordinateChangeRef.current) {
+          onCoordinateChangeRef.current(clicked);
+        }
       });
 
       setTimeout(() => map.invalidateSize(), 100);
@@ -286,7 +302,7 @@ function SatelliteMap({ lat, lon, area, onAreaChange, onCoordinateChange }) {
 function openMap(lat, lon) {
   if (lat && lon) window.open(`https://www.google.com/maps/@${lat},${lon},16z/data=!3m1!1e3`, '_blank');
 }
-function LocationMap({ row, onAreaChange }) {
+function LocationMap({ row, onAreaChange, onCoordinateChange }) {
   const initial = row.areaData || { drawing: false, closed: false, points: [] };
   const [drawing, setDrawing] = useState(Boolean(initial.drawing));
   const [closed, setClosed] = useState(Boolean(initial.closed));
@@ -338,15 +354,7 @@ function LocationMap({ row, onAreaChange }) {
       area={{ drawing, closed, points }}
       onAreaChange={handleMapArea}
       onCoordinateChange={v => {
-        onAreaChange({
-          ...row.areaData,
-          drawing: false,
-          closed: row.areaData?.closed || false,
-          points: row.areaData?.points || [],
-          areaHa: row.areaData?.areaHa || 0,
-          perimeterM: row.areaData?.perimeterM || 0
-        });
-        window.dispatchEvent(new CustomEvent('ibc-finca-coordinate-change', { detail: v }));
+        if (onCoordinateChange) onCoordinateChange(v);
       }}
     />
 
@@ -581,7 +589,14 @@ export default function App() {
                       <Field label="Longitud" value={row.longitud} onChange={v => setRow('fincas', i, 'longitud', v)} />
                     </div>
                     <div className="gps-actions"><button className="gps-search" onClick={() => setRow('fincas', i, 'mapRefresh', Date.now())}>Buscar ubicación por coordenadas</button><span>Puede ingresar las coordenadas compartidas por el cliente o utilizar el GPS del dispositivo.</span></div>
-                    <LocationMap row={row} onAreaChange={v=>setRow('fincas',i,'areaData',v)} />
+                    <LocationMap
+                      row={row}
+                      onAreaChange={v=>setRow('fincas',i,'areaData',v)}
+                      onCoordinateChange={v => {
+                        setRow('fincas', i, 'latitud', v.latitud);
+                        setRow('fincas', i, 'longitud', v.longitud);
+                      }}
+                    />
                     <Field label="Observaciones" value={row.observaciones} onChange={v=>setRow('fincas', i, 'observaciones', v)} placeholder="Referencia de acceso, camino, colonia, etc." />
                   </div>
                 </div>)}
