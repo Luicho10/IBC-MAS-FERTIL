@@ -29,9 +29,25 @@ function Section({ number, title, children }) {
   return <section className="section"><h2>{number}. {title}</h2>{children}</section>;
 }
 
-function mapUrl(lat, lon) { const la = Number(lat), lo = Number(lon); if (!Number.isFinite(la) || !Number.isFinite(lo)) return ''; const d = 0.006; return `https://www.openstreetmap.org/export/embed.html?bbox=${lo-d}%2C${la-d}%2C${lo+d}%2C${la+d}&layer=mapnik&marker=${la}%2C${lo}`; }
-function openMap(lat, lon) { if (lat && lon) window.open(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`, '_blank'); }
-function LocationMap({ lat, lon }) { const src = mapUrl(lat, lon); return src ? <iframe className="location-map" title="Verificación de ubicación" src={src} loading="lazy" /> : <div className="location-map-empty">Ingrese latitud y longitud para visualizar la ubicación.</div>; }
+function mapUrl(lat, lon) {
+  const la = Number(lat), lo = Number(lon);
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) return '';
+  const delta = 0.006;
+  const bbox = `${lo-delta},${la-delta},${lo+delta},${la+delta}`;
+  return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&imageSR=4326&size=1200,420&format=jpg&f=image&transparent=false`;
+}
+function openMap(lat, lon) {
+  if (lat && lon) window.open(`https://www.google.com/maps/@${lat},${lon},16z/data=!3m1!1e3`, '_blank');
+}
+function LocationMap({ lat, lon }) {
+  const src = mapUrl(lat, lon);
+  return src
+    ? <div className="satellite-map-wrap">
+        <img className="location-map satellite-map" src={src} alt="Vista satelital de la ubicación" />
+        <div className="satellite-badge">VISTA SATELITAL</div>
+      </div>
+    : <div className="location-map-empty">Ingrese latitud y longitud para visualizar la ubicación.</div>;
+}
 
 function Table({ heads, children, className = '' }) {
   return <div className={`table-wrap ${className}`}><table><thead><tr>{heads.map(head => <th key={head}>{head}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
